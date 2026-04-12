@@ -1,0 +1,17 @@
+{
+  "thingId": "smart-park:sensor-lake",
+  "policyId": "smart-park:policy",
+  "attributes": {
+    "name":     "Area Lago",
+    "location": { "lat": 38.1162, "lon": 13.3620 },
+    "type":     "environmental-sensor"
+  },
+  "features": {
+    "temperature": { "properties": { "value": null, "unit": "°C" } },
+    "humidity":    { "properties": { "value": null, "unit": "%" } },
+    "airQuality":  { "properties": { "co2_ppm": null, "status": "unknown" } },
+    "motion":      { "properties": { "people_count": null } },
+    "noise":       { "properties": { "value": null, "unit": "dB" } },
+    "status":      { "properties": { "last_update": null, "anomaly": false } }
+  }
+}

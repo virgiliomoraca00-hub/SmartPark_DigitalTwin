@@ -1,0 +1,23 @@
+{
+  "name": "mosquitto-mqtt",
+  "connectionType": "mqtt",
+  "connectionStatus": "open",
+  "uri": "tcp://mosquitto:1883",
+  "sources": [
+    {
+      "addresses": ["smart-park/+/telemetry"],
+      "consumerCount": 1,
+      "qos": 1,
+      "authorizationContext": ["nginx:ditto"],
+      "payloadMapping": ["smart-park-mapping"]
+    }
+  ],
+  "mappingDefinitions": {
+    "smart-park-mapping": {
+      "mappingEngine": "JavaScript",
+      "options": {
+        "incomingScript": "function mapToDittoProtocol(headers, textPayload, bytePayload, contentType) { var payload = JSON.parse(textPayload); var sensorId = payload.sensor_id; var airStatus = payload.air_quality > 800 ? 'poor' : payload.air_quality > 600 ? 'moderate' : 'good'; return { 'topic': 'smart-park/' + sensorId + '/things/twin/commands/modify', 'headers': { 'content-type': 'application/json' }, 'path': '/features', 'value': { 'temperature': { 'properties': { 'value': payload.temperature } }, 'humidity':    { 'properties': { 'value': payload.humidity } }, 'airQuality':  { 'properties': { 'co2_ppm': payload.air_quality, 'status': airStatus } }, 'motion':      { 'properties': { 'people_count': payload.motion } }, 'noise':       { 'properties': { 'value': payload.noise } }, 'status':      { 'properties': { 'last_update': payload.timestamp, 'anomaly': payload.anomaly } } } }; }"
+      }
+    }
+  }
+}

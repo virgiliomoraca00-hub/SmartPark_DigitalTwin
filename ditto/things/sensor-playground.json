@@ -1,0 +1,17 @@
+{
+  "thingId": "smart-park:sensor-playground",
+  "policyId": "smart-park:policy",
+  "attributes": {
+    "name":     "Area Giochi",
+    "location": { "lat": 38.1150, "lon": 13.3608 },
+    "type":     "environmental-sensor"
+  },
+  "features": {
+    "temperature": { "properties": { "value": null, "unit": "°C" } },
+    "humidity":    { "properties": { "value": null, "unit": "%" } },
+    "airQuality":  { "properties": { "co2_ppm": null, "status": "unknown" } },
+    "motion":      { "properties": { "people_count": null } },
+    "noise":       { "properties": { "value": null, "unit": "dB" } },
+    "status":      { "properties": { "last_update": null, "anomaly": false } }
+  }
+}
