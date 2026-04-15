@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SmartPark — Sensor Admin</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg:        #0f1117;
+    --bg2:       #1a1d27;
+    --bg3:       #21253a;
+    --border:    rgba(255,255,255,0.08);
+    --text:      #e2e4ef;
+    --text2:     #7b8197;
+    --accent:    #4f7ef8;
+    --accent2:   #7b5cf0;
+    --success:   #34c98a;
+    --danger:    #e05c5c;
+    --warn:      #e09a3a;
+    --tag-env:   #1d6b5e;
+    --tag-audio: #4a3585;
+    --tag-vis:   #1a4a7a;
+    --tag-wear:  #5a3520;
+    --radius:    10px;
+    --sidebar-w: 220px;
+  }
+  html, body { height: 100%; font-family: system-ui, -apple-system, sans-serif;
+    background: var(--bg); color: var(--text); font-size: 14px; }
+
+  /* ── Layout ── */
+  .layout { display: flex; height: 100vh; overflow: hidden; }
+  .sidebar {
+    width: var(--sidebar-w); min-width: var(--sidebar-w);
+    background: var(--bg2); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; padding: 20px 12px;
+  }
+  .logo { display: flex; align-items: center; gap: 10px; padding: 0 8px 24px; }
+  .logo-icon {
+    width: 32px; height: 32px; border-radius: 8px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex; align-items: center; justify-content: center; font-size: 16px;
+  }
+  .logo-text { font-size: 15px; font-weight: 600; color: var(--text); line-height: 1.2; }
+  .logo-sub  { font-size: 11px; color: var(--text2); }
+  nav button {
+    display: flex; align-items: center; gap: 10px; width: 100%;
+    padding: 9px 10px; border: none; border-radius: 7px; cursor: pointer;
+    background: transparent; color: var(--text2); font-size: 13px; text-align: left;
+    transition: background .15s, color .15s; margin-bottom: 2px;
+  }
+  nav button:hover { background: rgba(255,255,255,0.05); color: var(--text); }
+  nav button.active { background: rgba(79,126,248,0.15); color: var(--accent); }
+  nav .icon { font-size: 15px; width: 18px; text-align: center; }
+  .sidebar-bottom { margin-top: auto; }
+  .deploy-status {
+    border-radius: var(--radius); padding: 10px 12px;
+    background: var(--bg3); border: 1px solid var(--border);
+    font-size: 12px;
+  }
+  .deploy-status .label { color: var(--text2); margin-bottom: 4px; }
+  .deploy-status .val   { font-weight: 500; }
+  .deploy-status .val.ok   { color: var(--success); }
+  .deploy-status .val.err  { color: var(--danger); }
+  .deploy-status .val.idle { color: var(--text2); }
+
+  /* ── Main ── */
+  .main { flex: 1; overflow-y: auto; padding: 28px 32px; }
+  .section { display: none; }
+  .section.active { display: block; }
+  .page-header { display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 24px; }
+  .page-title { font-size: 20px; font-weight: 600; }
+  .page-sub   { font-size: 13px; color: var(--text2); margin-top: 2px; }
+
+  /* ── Buttons ── */
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 14px; border-radius: 7px; border: none; cursor: pointer;
+    font-size: 13px; font-weight: 500; transition: opacity .15s, filter .15s;
+  }
+  .btn:hover { filter: brightness(1.1); }
+  .btn:active { filter: brightness(0.9); }
+  .btn-primary  { background: var(--accent); color: #fff; }
+  .btn-danger   { background: var(--danger); color: #fff; }
+  .btn-ghost    { background: rgba(255,255,255,0.07); color: var(--text); }
+  .btn-success  { background: var(--success); color: #000; }
+  .btn-sm { padding: 4px 10px; font-size: 12px; }
+
+  /* ── Models grid ── */
+  .models-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 16px; }
+  .model-card {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .model-card-header {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    padding: 16px 18px 12px; border-bottom: 1px solid var(--border);
+  }
+  .model-type-tag {
+    font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px;
+    padding: 2px 8px; border-radius: 4px; color: rgba(255,255,255,0.85);
+  }
+  .model-feature { font-size: 12px; color: var(--text2); margin-top: 4px; }
+  .model-desc    { font-size: 12px; color: var(--text2); margin-top: 2px; }
+  .model-props { padding: 12px 18px 16px; }
+  .model-props-title { font-size: 11px; color: var(--text2); margin-bottom: 8px;
+    text-transform: uppercase; letter-spacing: .5px; }
+  .prop-list { display: flex; flex-wrap: wrap; gap: 5px; }
+  .prop-chip {
+    font-size: 11px; padding: 2px 8px; border-radius: 4px;
+    background: rgba(255,255,255,0.06); color: var(--text2);
+  }
+  .prop-chip .pname { color: var(--text); }
+  .prop-chip .ptype { opacity: .6; margin-left: 2px; }
+  .model-actions { padding: 0 18px 14px; display: flex; gap: 8px; }
+
+  /* ── New model form ── */
+  .form-card {
+    background: var(--bg2); border: 1px solid var(--accent);
+    border-radius: var(--radius); padding: 22px 24px; margin-bottom: 20px;
+  }
+  .form-title { font-size: 15px; font-weight: 600; margin-bottom: 16px; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+  .form-row.full { grid-template-columns: 1fr; }
+  label { display: block; font-size: 12px; color: var(--text2); margin-bottom: 5px; }
+  input[type=text], textarea, select {
+    width: 100%; background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 6px; color: var(--text); font-size: 13px; padding: 8px 10px;
+    outline: none; transition: border-color .15s; font-family: inherit;
+  }
+  input[type=text]:focus, textarea:focus { border-color: var(--accent); }
+  textarea { resize: vertical; min-height: 70px; font-family: 'JetBrains Mono', 'Consolas', monospace; }
+
+  /* ── Properties editor ── */
+  .props-editor { background: var(--bg3); border-radius: 8px; padding: 14px; }
+  .props-editor-header { display: flex; justify-content: space-between;
+    align-items: center; margin-bottom: 10px; }
+  .prop-row {
+    display: grid; grid-template-columns: 1fr 100px 120px 28px;
+    gap: 8px; margin-bottom: 6px; align-items: center;
+  }
+  .prop-row input, .prop-row select {
+    margin: 0; padding: 5px 8px; font-size: 12px;
+  }
+  .prop-del {
+    background: none; border: none; color: var(--danger); cursor: pointer;
+    font-size: 16px; line-height: 1; padding: 2px; border-radius: 4px;
+    transition: background .1s;
+  }
+  .prop-del:hover { background: rgba(224,92,92,0.15); }
+  .aliases-input { font-family: 'Consolas', monospace; font-size: 12px; }
+
+  /* ── Things table ── */
+  .things-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+  .search-input {
+    flex: 1; max-width: 320px; background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 7px; color: var(--text); font-size: 13px; padding: 7px 12px;
+    outline: none; transition: border-color .15s;
+  }
+  .search-input:focus { border-color: var(--accent); }
+  .things-table { width: 100%; border-collapse: collapse; }
+  .things-table th {
+    text-align: left; font-size: 11px; color: var(--text2); font-weight: 500;
+    text-transform: uppercase; letter-spacing: .5px; padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .things-table td {
+    padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.04);
+    font-size: 13px; vertical-align: middle;
+  }
+  .things-table tr:hover td { background: rgba(255,255,255,0.02); }
+  .thing-id { font-family: 'Consolas', monospace; font-size: 12px; color: var(--text); }
+  .thing-feature { font-size: 11px; color: var(--text2); margin-top: 2px; }
+  .ts-badge { font-size: 11px; color: var(--text2); }
+
+  /* ── Log ── */
+  .log-box {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 16px; font-family: 'Consolas', monospace; font-size: 12px;
+    color: var(--text2); max-height: 500px; overflow-y: auto; white-space: pre-wrap;
+  }
+  .log-entry { margin-bottom: 6px; }
+  .log-entry.ok   .log-time { color: var(--success); }
+  .log-entry.err  .log-time { color: var(--danger); }
+  .log-entry.info .log-time { color: var(--accent); }
+  .log-time { margin-right: 8px; }
+
+  /* ── Misc ── */
+  .empty { text-align: center; padding: 48px; color: var(--text2); }
+  .empty-icon { font-size: 40px; margin-bottom: 12px; }
+  .badge {
+    display: inline-block; padding: 2px 7px; border-radius: 4px;
+    font-size: 11px; font-weight: 600;
+  }
+  .badge-ok  { background: rgba(52,201,138,0.15); color: var(--success); }
+  .badge-err { background: rgba(224,92,92,0.15); color: var(--danger); }
+  .spinner {
+    display: inline-block; width: 14px; height: 14px;
+    border: 2px solid rgba(255,255,255,0.2);
+    border-top-color: var(--accent); border-radius: 50%;
+    animation: spin .6s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .toast {
+    position: fixed; bottom: 24px; right: 24px; z-index: 999;
+    background: var(--bg3); border: 1px solid var(--border); border-radius: 9px;
+    padding: 12px 18px; font-size: 13px; box-shadow: 0 8px 30px rgba(0,0,0,.5);
+    transform: translateY(80px); opacity: 0; transition: all .25s;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .toast.show { transform: translateY(0); opacity: 1; }
+  .toast.ok   { border-color: var(--success); }
+  .toast.err  { border-color: var(--danger); }
+  .divider { height: 1px; background: var(--border); margin: 20px 0; }
+
+  /* ── Aliases tag input ── */
+  .tags-container {
+    display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px 8px; cursor: text;
+  }
+  .tags-container:focus-within { border-color: var(--accent); }
+  .tag {
+    display: flex; align-items: center; gap: 4px; background: rgba(79,126,248,0.15);
+    color: var(--accent); border-radius: 4px; padding: 2px 7px; font-size: 12px;
+  }
+  .tag-rm { background: none; border: none; color: var(--accent); cursor: pointer;
+    font-size: 14px; line-height: 1; padding: 0; }
+  .tag-input {
+    flex: 1; min-width: 80px; background: none; border: none;
+    color: var(--text); font-size: 13px; outline: none; padding: 0;
+  }
+  .prefix-row { display: grid; grid-template-columns: 1fr 28px; gap: 6px;
+    margin-bottom: 6px; align-items: center; }
+</style>
+</head>
+<body>
+<div class="layout">
+
+<!-- ── Sidebar ── -->
+<aside class="sidebar">
+  <div class="logo">
+    <div class="logo-icon">🌿</div>
+    <div>
+      <div class="logo-text">SmartPark</div>
+      <div class="logo-sub">Sensor Admin</div>
+    </div>
+  </div>
+  <nav>
+    <button class="active" onclick="nav('models', this)">
+      <span class="icon">⬡</span> Modelli sensore
+    </button>
+    <button onclick="nav('things', this)">
+      <span class="icon">◈</span> Things Ditto
+    </button>
+    <button onclick="nav('log', this)">
+      <span class="icon">≡</span> Log deploy
+    </button>
+  </nav>
+  <div class="sidebar-bottom">
+    <div class="deploy-status" id="sidebar-status">
+      <div class="label">Ultimo deploy</div>
+      <div class="val idle" id="status-val">—</div>
+      <div style="font-size:11px;color:var(--text2);margin-top:3px" id="status-time"></div>
+    </div>
+    <button class="btn btn-ghost" style="width:100%;margin-top:10px;justify-content:center"
+      onclick="triggerRedeploy()">
+      ↺ Forza redeploy
+    </button>
+  </div>
+</aside>
+
+<!-- ── Main ── -->
+<main class="main">
+
+  <!-- MODELS -->
+  <section class="section active" id="sec-models">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Modelli sensore</div>
+        <div class="page-sub">Ogni file JSON definisce un tipo di Thing Model mappato dal JS mapper</div>
+      </div>
+      <button class="btn btn-primary" onclick="toggleNewForm()">+ Nuovo modello</button>
+    </div>
+
+    <!-- New model form -->
+    <div id="new-form" style="display:none">
+      <div class="form-card">
+        <div class="form-title">Nuovo tipo di sensore</div>
+        <div class="form-row">
+          <div>
+            <label>Tipo (chiave univoca) *</label>
+            <input type="text" id="f-type" placeholder="es. co2_sensor" oninput="slugify(this)">
+          </div>
+          <div>
+            <label>Feature name (Ditto) *</label>
+            <input type="text" id="f-feature" placeholder="es. co2Measurement">
+          </div>
+        </div>
+        <div class="form-row full">
+          <div>
+            <label>Descrizione</label>
+            <input type="text" id="f-desc" placeholder="Descrizione breve del sensore">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div>
+            <label>Alias (premi Invio per aggiungere)</label>
+            <div class="tags-container" id="aliases-container" onclick="document.getElementById('alias-input').focus()">
+              <input class="tag-input" id="alias-input" placeholder="aggiungi alias…"
+                onkeydown="aliasKey(event)">
+            </div>
+          </div>
+          <div>
+            <label>Prefissi device_id</label>
+            <div id="prefix-list"></div>
+            <button class="btn btn-ghost btn-sm" style="margin-top:6px" onclick="addPrefix()">+ prefisso</button>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+        
+        <div class="props-editor">
+          <div class="props-editor-header">
+            <div style="font-size:13px;font-weight:500">Attributi e Metadati</div>
+            <button class="btn btn-ghost btn-sm" onclick="addProp('attr-rows')">+ attributo</button>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 100px 120px 28px;gap:8px;
+            margin-bottom:6px;font-size:11px;color:var(--text2);padding:0 2px">
+            <div>Nome</div><div>Tipo JS</div><div>Valore default</div><div></div>
+          </div>
+          <div id="attr-rows"></div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="props-editor">
+          <div class="props-editor-header">
+            <div style="font-size:13px;font-weight:500">Proprietà (Features)</div>
+            <button class="btn btn-ghost btn-sm" onclick="addProp('prop-rows')">+ proprietà</button>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 100px 120px 28px;gap:8px;
+            margin-bottom:6px;font-size:11px;color:var(--text2);padding:0 2px">
+            <div>Nome proprietà</div><div>Tipo JS</div><div>Valore default</div><div></div>
+          </div>
+          <div id="prop-rows"></div>
+        </div>
+
+        <div style="display:flex;gap:10px;margin-top:16px">
+          <button class="btn btn-primary" onclick="saveModel()">Salva modello</button>
+          <button class="btn btn-ghost" onclick="toggleNewForm()">Annulla</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Model cards -->
+    <div class="models-grid" id="models-grid">
+      <div class="empty"><div class="empty-icon">⬡</div>Caricamento modelli…</div>
+    </div>
+  </section>
+
+  <!-- THINGS -->
+  <section class="section" id="sec-things">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Things Ditto</div>
+        <div class="page-sub">Tutti i digital twin presenti nel namespace smartpark</div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-danger" onclick="deleteAllThings()">🗑️ Elimina tutti i Thing</button>
+        <button class="btn btn-ghost" onclick="loadThings()">↺ Aggiorna</button>
+      </div>
+    </div>
+    <div class="things-toolbar">
+      <input class="search-input" type="text" placeholder="Filtra per ID…"
+        oninput="filterThings(this.value)" id="things-search">
+      <span id="things-count" style="font-size:12px;color:var(--text2)"></span>
+    </div>
+    <table class="things-table">
+      <thead>
+        <tr>
+          <th>Thing ID</th>
+          <th>Feature</th>
+          <th>Ultimo aggiornamento</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="things-body">
+        <tr><td colspan="4" class="empty">Caricamento…</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- LOG -->
+  <section class="section" id="sec-log">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Log deploy</div>
+        <div class="page-sub">Cronologia delle operazioni di bundling e deploy verso Ditto</div>
+      </div>
+      <button class="btn btn-ghost" onclick="loadLog()">↺ Aggiorna</button>
+    </div>
+    <div class="log-box" id="log-box">Caricamento…</div>
+  </section>
+
+</main>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ── Config ─────────────────────────────────────────────────────────────────
+const DITTO_URL  = 'http://localhost:8080';
+const DITTO_NS   = 'smartpark';
+const DITTO_AUTH = 'Basic ' + btoa('ditto:ditto');
+const DITTO_HDR  = { 'Authorization': DITTO_AUTH, 'Content-Type': 'application/json' };
+const API_BASE   = 'http://localhost:8091';   // smartpark-api backend
+
+// ── (EMBEDDED_MODELS rimosso — dati sempre freschi da API) ──────────────────
+
+// ── Nav ────────────────────────────────────────────────────────────────────
+function nav(sec, btn) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('sec-' + sec).classList.add('active');
+  // btn passato esplicitamente dall'onclick, fallback a event.currentTarget
+  const activeBtn = btn || (typeof event !== 'undefined' && event.currentTarget);
+  if (activeBtn) activeBtn.classList.add('active');
+  if (sec === 'models')  loadModels();
+  if (sec === 'things')  loadThings();
+  if (sec === 'log') {
+    loadLog();
+    startLogWs();
+    if (_logPoll) clearInterval(_logPoll);
+    _logPoll = setInterval(loadLog, 5000);
+  } else {
+    if (_logPoll) { clearInterval(_logPoll); _logPoll = null; }
+    if (_logWs && _logWs.readyState < 2) { _logWs.close(); _logWs = null; }
+  }
+}
+
+// ── Toast ──────────────────────────────────────────────────────────────────
+function toast(msg, type = 'ok') {
+  const el = document.getElementById('toast');
+  el.textContent = (type === 'ok' ? '✓ ' : '✗ ') + msg;
+  el.className = 'toast show ' + type;
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), 3200);
+}
+
+// ── Status — via smartpark-api (include Ditto health + lastDeploy) ──────────
+async function loadStatus() {
+  const el = document.getElementById('status-val');
+  const te = document.getElementById('status-time');
+  try {
+    const r = await fetch(`${API_BASE}/api/status`);
+    if (!r.ok) throw new Error(r.status);
+    const d = await r.json();
+    if (d.dittoOk) {
+      el.textContent = '✓ Ditto OK';
+      el.className = 'val ok';
+    } else {
+      el.textContent = '✗ Ditto offline';
+      el.className = 'val err';
+    }
+    te.textContent = d.lastDeploy
+      ? 'Deploy: ' + new Date(d.lastDeploy.time).toLocaleString('it')
+      : new Date().toLocaleString('it');
+  } catch(e) {
+    el.textContent = '✗ API offline';
+    el.className = 'val err';
+    te.textContent = new Date().toLocaleString('it');
+  }
+}
+
+// ── Models (embedded) ──────────────────────────────────────────────────────
+const TYPE_COLORS = {
+  environmental: '#1d6b5e', audio: '#4a3585',
+  vision: '#1a4a7a', wearable: '#5a3520'
+};
+function typeColor(t) { return TYPE_COLORS[t] || '#2a3560'; }
+function inferType(val) {
+  if (typeof val === 'boolean') return 'boolean';
+  if (typeof val === 'number')  return Number.isInteger(val) ? 'integer' : 'float';
+  if (Array.isArray(val))       return 'array';
+  if (typeof val === 'object' && val !== null) return 'object';
+  return 'string';
+}
+
+function loadModels() {
+  const grid = document.getElementById('models-grid');
+  grid.innerHTML = '<div class="empty"><div class="empty-icon">⟳</div>Caricamento modelli...</div>';
+  fetch(`${API_BASE}/api/models`)
+    .then(r => r.ok ? r.json() : Promise.reject(r.status))
+    .then(data => {
+      const models = Array.isArray(data) ? data : (data.models || []);
+      if (data.errors && data.errors.length) {
+        data.errors.forEach(e => console.warn('[models]', e));
+      }
+      if (!models.length) {
+        grid.innerHTML = '<div class="empty"><div class="empty-icon">⬡</div>Nessun modello trovato</div>';
+        return;
+      }
+      grid.innerHTML = models.map(m => renderModelCard(m)).join('');
+    })
+    .catch(err => {
+      grid.innerHTML = `<div class="empty" style="color:var(--danger)"><div class="empty-icon">✗</div>Errore caricamento modelli: ${err}</div>`;
+    });
+}
+
+function renderModelCard(m) {
+  const props = Object.entries(m.defaultProperties || {});
+  const chips = props.map(([k, v]) => {
+    const t = inferType(v);
+    return `<span class="prop-chip"><span class="pname">${k}</span><span class="ptype"> ${t}</span></span>`;
+  }).join('');
+  
+  const attrs = Object.entries(m.attributes || {});
+  const attrChips = attrs.map(([k, v]) => {
+    let disp = v;
+    if (k === 'location') disp = `${v.lat}, ${v.lng}`;
+    else if (typeof v === 'object') disp = '...';
+    return `<span class="prop-chip"><span class="pname">${k}</span><span class="ptype" style="opacity:0.8; margin-left:4px;">${disp}</span></span>`;
+  }).join('');
+
+  const color = typeColor(m.type);
+  const total = props.length + attrs.length;
+  return `
+  <div class="model-card">
+    <div class="model-card-header">
+      <div>
+        <span class="model-type-tag" style="background:${color}">${m.type}</span>
+        <div class="model-feature">feature: <strong>${m.feature}</strong></div>
+        <div class="model-desc">${m.description || ''}</div>
+        ${m.aliases?.length ? `<div class="model-desc" style="margin-top:2px">alias: ${m.aliases.join(', ')}</div>` : ''}
+      </div>
+      <span class="badge ${total > 0 ? 'badge-ok' : ''}">${total} totali</span>
+    </div>
+    <div class="model-props">
+      <div class="model-props-title">Attributi e Metadati</div>
+      <div class="prop-list">${attrChips || '<span style="color:var(--text2);font-size:12px">nessuno</span>'}</div>
+    </div>
+    <div class="model-props" style="margin-top:2px">
+      <div class="model-props-title">Proprietà (Features)</div>
+      <div class="prop-list">${chips || '<span style="color:var(--text2);font-size:12px">nessuna</span>'}</div>
+    </div>
+  </div>`;
+}
+
+// ── New model form ─────────────────────────────────────────────────────────
+let aliases = [];
+let prefixes = [];
+
+function toggleNewForm() {
+  const f = document.getElementById('new-form');
+  if (f.style.display === 'none') {
+    f.style.display = 'block';
+    aliases = []; prefixes = [];
+    document.getElementById('f-type').value = '';
+    document.getElementById('f-feature').value = '';
+    document.getElementById('f-desc').value = '';
+    document.getElementById('prop-rows').innerHTML = '';
+    document.getElementById('attr-rows').innerHTML = '';
+    renderAliases();
+    renderPrefixes();
+    addProp('prop-rows');
+    addProp('attr-rows');
+  } else {
+    f.style.display = 'none';
+  }
+}
+
+function slugify(el) {
+  el.value = el.value.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+}
+
+function renderAliases() {
+  const c = document.getElementById('aliases-container');
+  const inp = document.getElementById('alias-input');
+  c.querySelectorAll('.tag').forEach(t => t.remove());
+  aliases.forEach((a, i) => {
+    const tag = document.createElement('span');
+    tag.className = 'tag';
+    tag.innerHTML = `${a} <button class="tag-rm" onclick="removeAlias(${i})">×</button>`;
+    c.insertBefore(tag, inp);
+  });
+}
+function aliasKey(e) {
+  if ((e.key === 'Enter' || e.key === ',') && e.target.value.trim()) {
+    e.preventDefault();
+    const val = e.target.value.trim().replace(/,/g,'');
+    if (val && !aliases.includes(val)) aliases.push(val);
+    e.target.value = '';
+    renderAliases();
+  }
+}
+function removeAlias(i) { aliases.splice(i, 1); renderAliases(); }
+
+function renderPrefixes() {
+  const c = document.getElementById('prefix-list');
+  c.innerHTML = prefixes.map((p, i) => `
+    <div class="prefix-row">
+      <input type="text" value="${p}" placeholder="es. co2-"
+        onchange="prefixes[${i}]=this.value" style="padding:5px 8px;font-size:12px">
+      <button class="prop-del" onclick="removePrefix(${i})">×</button>
+    </div>`).join('');
+}
+function addPrefix()    { prefixes.push(''); renderPrefixes(); }
+function removePrefix(i){ prefixes.splice(i,1); renderPrefixes(); }
+
+function addProp() {
+  const row = document.createElement('div');
+  row.className = 'prop-row';
+  row.innerHTML = `
+    <input type="text" placeholder="nome_proprietà" oninput="this.value=this.value.replace(/ /g,'_')">
+    <select>
+      <option value="string">string</option>
+      <option value="float" selected>float</option>
+      <option value="integer">integer</option>
+      <option value="boolean">boolean</option>
+      <option value="array">array</option>
+      <option value="object">object</option>
+    </select>
+    <input type="text" placeholder="default">
+    <button class="prop-del" onclick="this.parentNode.remove()">×</button>`;
+  document.getElementById('prop-rows').appendChild(row);
+}
+
+function collectProps() {
+  const rows = document.querySelectorAll('#prop-rows .prop-row');
+  const props = {};
+  rows.forEach(row => {
+    const inputs = row.querySelectorAll('input, select');
+    const name   = inputs[0].value.trim();
+    const type   = inputs[1].value;
+    const defRaw = inputs[2].value.trim();
+    if (!name) return;
+    let def;
+    if (type === 'float')        def = defRaw !== '' ? parseFloat(defRaw) : 0.0;
+    else if (type === 'integer') def = defRaw !== '' ? parseInt(defRaw)   : 0;
+    else if (type === 'boolean') def = defRaw === 'true';
+    else if (type === 'array')   def = [];
+    else if (type === 'object')  def = {};
+    else def = defRaw;
+    props[name] = def;
+  });
+  return props;
+}
+
+// saveModel: POST al backend → file scritto su disco + bundle automatico
+async function saveModel() {
+  const type    = document.getElementById('f-type').value.trim();
+  const feature = document.getElementById('f-feature').value.trim();
+  const desc    = document.getElementById('f-desc').value.trim();
+  if (!type || !feature) return toast('Tipo e Feature sono obbligatori', 'err');
+  const model = {
+    type, feature, description: desc,
+    aliases: aliases.filter(Boolean),
+    devicePrefixes: prefixes.map(p => p.trim()).filter(Boolean),
+    attributes: collectProps('attr-rows'),
+    defaultProperties: collectProps('prop-rows')
+  };
+  if (model.defaultProperties) {
+    model.defaultProperties._timestamp = '';
+  }
+  try {
+    const r = await fetch(`${API_BASE}/api/models`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(model)
+    });
+    if (!r.ok) throw new Error(await r.text());
+    toast(`Modello "${type}" salvato`);
+    toggleNewForm();
+    setTimeout(loadModels, 600);   // aspetta bundle completato
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+// ── Things → Ditto REST API diretto ────────────────────────────────────────
+let allThings = [];
+
+async function loadThings() {
+  const tbody = document.getElementById('things-body');
+  tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px"><div class="spinner"></div></td></tr>';
+  try {
+    const r = await fetch(`${API_BASE}/api/things`);
+    if (!r.ok) throw new Error(`API ${r.status}: ${await r.text()}`);
+    const d = await r.json();
+    allThings = d.items || [];
+    renderThings(allThings);
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="4" class="empty" style="color:var(--danger)">Errore: ${e.message}</td></tr>`;
+  }
+}
+
+function renderThings(things) {
+  const tbody = document.getElementById('things-body');
+  document.getElementById('things-count').textContent = things.length + ' thing' + (things.length!==1?'s':'');
+  if (!things.length) {
+    tbody.innerHTML = '<tr><td colspan="4" class="empty">Nessun Thing trovato</td></tr>';
+    return;
+  }
+  tbody.innerHTML = things.map(t => {
+    const features = Object.keys(t.features || {}).join(', ') || '—';
+    const modified = t._modified ? new Date(t._modified).toLocaleString('it') : '—';
+    return `<tr>
+      <td>
+        <div class="thing-id">${t.thingId}</div>
+        <div class="thing-feature">${features}</div>
+      </td>
+      <td>${features}</td>
+      <td><span class="ts-badge">${modified}</span></td>
+      <td style="text-align:right">
+        <button class="btn btn-danger btn-sm"
+          onclick="deleteThing('${t.thingId}')">Elimina</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function filterThings(q) {
+  const filtered = q ? allThings.filter(t => t.thingId.includes(q)) : allThings;
+  renderThings(filtered);
+}
+
+async function deleteThing(thingId) {
+  if (!confirm(`Eliminare "${thingId}" da Ditto? Irreversibile.`)) return;
+  try {
+    const r = await fetch(`${API_BASE}/api/things?id=${encodeURIComponent(thingId)}`,
+      { method: 'DELETE' });
+    if (!r.ok) throw new Error(`API ${r.status}`);
+    toast(`Thing "${thingId}" eliminato`);
+    allThings = allThings.filter(t => t.thingId !== thingId);
+    renderThings(allThings);
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+async function deleteAllThings() {
+  if (!confirm('ATTENZIONE: Eliminare TUTTI i Thing in namespace smartpark? IRREVERSIBILE.')) return;
+  const pin = prompt('Per confermare, scrivi FLUSH:');
+  if (pin !== 'FLUSH') return alert('Cancellazione annullata.');
+
+  toast('Cancellazione in corso…');
+  let ok = 0, fail = 0;
+  // Esegue DELETE in parallelo (batch) invece che uno alla volta
+  const results = await Promise.allSettled(
+    allThings.map(t =>
+      fetch(`${API_BASE}/api/things?id=${encodeURIComponent(t.thingId)}`, { method: 'DELETE' })
+        .then(r => r.ok ? 'ok' : Promise.reject())
+    )
+  );
+  results.forEach(r => r.status === 'fulfilled' ? ok++ : fail++);
+  toast(`Eliminati ${ok} things${fail ? `, ${fail} errori` : ''}`);
+  loadThings();
+}
+
+// ── Log — polling REST + WebSocket live ────────────────────────────────────
+let _logWs = null;
+let _logPoll = null;
+
+function renderLog(entries) {
+  const box = document.getElementById('log-box');
+  if (!entries.length) { box.textContent = 'Nessun evento log disponibile.'; return; }
+  box.innerHTML = entries.slice().reverse().map(e => {
+    const cls = e.type === 'ok' ? 'ok' : e.type === 'err' ? 'err' : 'info';
+    return `<div class="log-entry ${cls}"><span class="log-time">${new Date(e.time).toLocaleString('it')}</span>${e.message}</div>`;
+  }).join('');
+}
+
+function loadLog() {
+  fetch(`${API_BASE}/api/log`)
+    .then(r => r.json())
+    .then(renderLog)
+    .catch(() => { document.getElementById('log-box').textContent = 'Backend non raggiungibile.'; });
+}
+
+function startLogWs() {
+  if (_logWs && _logWs.readyState < 2) return;   // già connesso
+  const wsUrl = API_BASE.replace(/^http/, 'ws') + '/ws/log';
+  _logWs = new WebSocket(wsUrl);
+  _logWs.onmessage = ev => {
+    try {
+      const data = JSON.parse(ev.data);
+      if (data.type === 'history') { renderLog(data.entries); return; }
+      // singolo evento — aggiunge in cima
+      const box = document.getElementById('log-box');
+      const cls = data.type === 'ok' ? 'ok' : data.type === 'err' ? 'err' : 'info';
+      const div = document.createElement('div');
+      div.className = 'log-entry ' + cls;
+      div.innerHTML = `<span class="log-time">${new Date(data.time).toLocaleString('it')}</span>${data.message}`;
+      box.insertBefore(div, box.firstChild);
+    } catch {}
+  };
+  _logWs.onclose = () => setTimeout(startLogWs, 3000);   // riconnessione auto
+}
+
+// ── Redeploy ───────────────────────────────────────────────────────────────
+async function triggerRedeploy() {
+  try {
+    const r = await fetch(`${API_BASE}/api/redeploy`, { method: 'POST' });
+    if (!r.ok) throw new Error(await r.text());
+    toast('Redeploy avviato');
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+
+
+// ── Init ───────────────────────────────────────────────────────────────────
+loadModels();
+loadStatus();
+setInterval(loadStatus, 15000);
+</script>
+</body>
+</html>

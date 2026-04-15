@@ -1,0 +1,49 @@
+{
+  "connectionType": "mqtt",
+  "connectionStatus": "open",
+  "failoverEnabled": true,
+  "uri": "tcp://mosquitto:1883",
+  "sources": [
+    {
+      "addresses": [
+        "smartpark/telemetry/#"
+      ],
+      "authorizationContext": [
+        "nginx:ditto"
+      ],
+      "qos": 1,
+      "replyTarget": {
+        "enabled": true,
+        "address": "smartpark/errors",
+        "expectedResponseTypes": [
+          "error",
+          "nack"
+        ]
+      },
+      "payloadMapping": [
+        "dynamic-json-mapper"
+      ]
+    }
+  ],
+  "targets": [
+    {
+      "address": "smartpark/events/{{ thing:id }}",
+      "topics": [
+        "_/_/things/twin/events"
+      ],
+      "authorizationContext": [
+        "nginx:ditto"
+      ],
+      "qos": 1
+    }
+  ],
+  "mappingDefinitions": {
+    "dynamic-json-mapper": {
+      "mappingEngine": "JavaScript",
+      "options": {
+        "incomingScript": "function mapToDittoProtocolMsg(headers, textPayload, bytePayload, contentType) { if (!textPayload) return null; var json; try { json = JSON.parse(textPayload); } catch(e) { return null; } var topic = headers['mqtt.topic'] || headers['ditto-message-subject'] || ''; var parts = topic.split('/'); var deviceId = parts[parts.length - 1] || json.device_id || ''; if (!deviceId) return null; var attrs = (json.attributes && typeof json.attributes === 'object') ? json.attributes : {}; if (json.type) attrs.type = json.type; if (json.device_id) attrs.device_id = json.device_id; if (json.timestamp) attrs.lastUpdate = json.timestamp; var features = {}; var src = (json.data && typeof json.data === 'object') ? json.data : {}; if (Object.keys(src).length > 0) { features['sensors'] = { properties: src }; } \n\n // ---> LA CORREZIONE È QUI <--- \n headers['content-type'] = 'application/merge-patch+json'; \n\n return Ditto.buildDittoProtocolMsg('smartpark', deviceId, 'things', 'twin', 'commands', 'merge', '/', headers, { 'policyId': 'smartpark:sensors-policy', 'attributes': attrs, 'features': features }); }",
+        "outgoingScript": "function mapFromDittoProtocolMsg(namespace, name, group, channel, criterion, action, path, dittoHeaders, value, status, extra) { var payload = { success: status < 400, status: status || 200, thingId: namespace + ':' + name, data: value || {} }; if (status >= 400) { payload.error = value; } return Ditto.buildExternalMsg({ 'Content-Type': 'application/json' }, JSON.stringify(payload), null, 'application/json'); }"
+      }
+    }
+  }
+}
