@@ -4,19 +4,26 @@ import DittoQueryBuilder from '../utils/DittoQueryBuilder'
 const DITTO_AUTH = 'Basic ' + btoa('ditto:ditto')
 
 /**
- * Connects to Ditto Server-Sent Events endpoint.
- * Listens to twin-modified events and updates a map of
- * { thingId -> { features, attributes, ...flat telemetry } }
+ * Approccio Ibrido per la gestione dei Things Ditto:
  *
- * Ditto SSE endpoint:
- *   GET /api/2/things?fields=thingId,features,attributes
- *   Accept: text/event-stream
+ *   A) Caricamento Iniziale (HTTP + Cursore)
+ *      → GET /api/2/search/things?size=200&fields=...
+ *      → Paginazione automatica con cursor per scaricare TUTTI i things
+ *
+ *   B) Ascolto Mutazioni (Server-Sent Events)
+ *      → GET /api/2/things?fields=...  (Accept: text/event-stream)
+ *      → Riceve eventi: created, modified, deleted
+ *      → Aggiorna lo state React in tempo reale
+ *
+ * Restituisce { things, connected }
+ *   things: Map<thingId, { thingId, attributes, features, ...flatTelemetry }>
  */
 export function useDittoSSE() {
-  const [things, setThings]     = useState({})   // keyed by thingId
+  const [things, setThings]       = useState({})
   const [connected, setConnected] = useState(false)
-  const esRef = useRef(null)
+  const controllerRef = useRef(null)
 
+  // ── Merge: aggiorna un singolo thing nello state ─────────────────────────
   const merge = useCallback((thingId, patch) => {
     setThings(prev => ({
       ...prev,
@@ -24,34 +31,31 @@ export function useDittoSSE() {
     }))
   }, [])
 
+  // ── Remove: rimuove un thing dallo state (evento deleted) ────────────────
+  const remove = useCallback((thingId) => {
+    setThings(prev => {
+      const next = { ...prev }
+      delete next[thingId]
+      return next
+    })
+  }, [])
+
   useEffect(() => {
-    // Ditto SSE: subscribe to all things changes
-    // fields param keeps the payload small
-    const builder = new DittoQueryBuilder()
-      .selectFields(['thingId', 'features', 'attributes'])
-      .withParam('option', 'size(200)');
-    
-    const url = builder.buildUrl();
+    const controller = new AbortController()
+    controllerRef.current = controller
 
-    // We rely on the Vite proxy adding auth, OR use custom fetch
-    // Fallback: chiudiamo il native EventSource a favore del proxy ReadableStream
-
-
-    // ── ReadableStream-based SSE (supports custom headers) ──────────────────
-    let controller = new AbortController()
-
-    // Helper to process payload into our flat state structure
+    // Helper: flattens Ditto thing → struttura piatta per il frontend
     const processPayload = (payload) => {
       const thingId = payload.thingId
       if (!thingId) return
-      
+
       const flat = {}
       const feats = payload.features || {}
-      for (const [featName, featVal] of Object.entries(feats)) {
+      for (const [, featVal] of Object.entries(feats)) {
         const props = featVal?.properties || {}
         Object.assign(flat, props)
       }
-      
+
       merge(thingId, {
         thingId,
         attributes: payload.attributes || {},
@@ -62,20 +66,27 @@ export function useDittoSSE() {
 
     const connect = async () => {
       try {
-        // 1. Initial Snapshot Fetch
-        // We fetch the current state so the dashboard isn't empty on F5
-        const initialBuilder = new DittoQueryBuilder().selectFields(['thingId', 'features', 'attributes']);
-        const initialRes = await fetch(initialBuilder.buildUrl(), {
-          headers: { 'Authorization': DITTO_AUTH }
-        })
-        if (initialRes.ok) {
-          const data = await initialRes.json()
-          const items = Array.isArray(data) ? data : (data.items || [])
-          items.forEach(processPayload)
-        }
+        // ═══════════════════════════════════════════════════════════════════
+        // A) CARICAMENTO INIZIALE — HTTP + Cursore (Search API)
+        //    Scarica TUTTI i things con paginazione automatica.
+        //    DittoQueryBuilder.executeAll() gestisce il loop sui cursori.
+        // ═══════════════════════════════════════════════════════════════════
+        const builder = new DittoQueryBuilder()
+          .selectFields(['thingId', 'features', 'attributes'])
+          .setPageSize(200)
 
-        // 2. Start SSE Stream
-        const res = await fetch(url, {
+        const allThings = await builder.executeAll({ signal: controller.signal })
+        console.log(`[Ditto] Snapshot caricato: ${allThings.length} things`)
+        allThings.forEach(processPayload)
+
+        // ═══════════════════════════════════════════════════════════════════
+        // B) ASCOLTO MUTAZIONI — Server-Sent Events (Things API)
+        //    /api/2/things supporta SSE (Accept: text/event-stream)
+        //    Riceve eventi created/modified/deleted in tempo reale.
+        //    La Search API NON supporta SSE.
+        // ═══════════════════════════════════════════════════════════════════
+        const sseUrl = '/ditto/2/things?fields=thingId,features,attributes'
+        const res = await fetch(sseUrl, {
           headers: {
             'Accept':        'text/event-stream',
             'Authorization': DITTO_AUTH,
@@ -84,15 +95,17 @@ export function useDittoSSE() {
         })
 
         if (!res.ok || !res.body) {
-          console.error('[SSE] Ditto unreachable, status:', res.status)
+          console.error('[SSE] Ditto non raggiungibile, status:', res.status)
           setConnected(false)
           return
         }
 
         setConnected(true)
-        const reader = res.body.getReader()
+        console.log('[SSE] Stream connesso — in ascolto per mutazioni')
+
+        const reader  = res.body.getReader()
         const decoder = new TextDecoder()
-        let buffer = ''
+        let buffer    = ''
 
         while (true) {
           const { done, value } = await reader.read()
@@ -100,9 +113,9 @@ export function useDittoSSE() {
 
           buffer += decoder.decode(value, { stream: true })
           const lines = buffer.split('\n')
-          buffer = lines.pop() // keep incomplete line
+          buffer = lines.pop() // mantieni riga incompleta
 
-          let eventType = 'message'
+          let eventType = 'modified'
           let dataLines = []
 
           for (const line of lines) {
@@ -111,21 +124,31 @@ export function useDittoSSE() {
             } else if (line.startsWith('data:')) {
               dataLines.push(line.slice(5).trim())
             } else if (line === '') {
-              // dispatch event
+              // ── Dispatch evento ──────────────────────────────────────
               if (dataLines.length) {
                 try {
                   const payload = JSON.parse(dataLines.join('\n'))
-                  processPayload(payload)
-                } catch { /* skip malformed */ }
+
+                  if (eventType === 'deleted') {
+                    // Thing eliminato → rimuovi dal state e dalla mappa
+                    if (payload.thingId) {
+                      console.log('[SSE] Thing eliminato:', payload.thingId)
+                      remove(payload.thingId)
+                    }
+                  } else {
+                    // created o modified → aggiorna/aggiungi nello state
+                    processPayload(payload)
+                  }
+                } catch { /* skip malformed SSE data */ }
               }
-              eventType = 'message'
+              eventType = 'modified'
               dataLines = []
             }
           }
         }
       } catch (err) {
         if (err.name !== 'AbortError') {
-          console.warn('[SSE] disconnected, retry in 5s', err.message)
+          console.warn('[SSE] Disconnesso, riconnessione in 5s:', err.message)
           setConnected(false)
           setTimeout(connect, 5000)
         }
@@ -133,13 +156,12 @@ export function useDittoSSE() {
     }
 
     connect()
-    esRef.current = controller
 
     return () => {
       controller.abort()
       setConnected(false)
     }
-  }, [merge])
+  }, [merge, remove])
 
   return { things, connected }
 }

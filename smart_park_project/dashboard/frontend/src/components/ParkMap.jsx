@@ -1,7 +1,10 @@
 import { Fragment } from 'react'
-import { getTypeConfig, sensorTypesMap } from '../config/sensorConfig'
 import { MapContainer, TileLayer, CircleMarker, Tooltip, Polygon } from 'react-leaflet'
+import { getTypeConfig, sensorTypesMap } from '../config/sensorConfig'
 import 'leaflet/dist/leaflet.css'
+
+const ANOMALY_COLOR = '#ef4444'
+const LEGEND_TYPES = ['environmental', 'camera', 'audio', 'wearable']
 
 export default function ParkMap({ initialPins = [], sseThings = {}, selectedSensor, onSelectSensor }) {
   // Limiti geografici restrittivi (pochi km attorno ai Giganti della Sila)
@@ -64,28 +67,30 @@ export default function ParkMap({ initialPins = [], sseThings = {}, selectedSens
           const type = typeSource.attributes?.type || "default"
           const config = getTypeConfig(type)
           const typeColor = config.color
-          const markerColor = data?.anomaly || data?.anomaly_detected || data?.features?.sensors?.properties?.anomaly_detected ? '#ef4444' : typeColor
           const isSelected = selectedSensor?.thingId === sensor.thingId
           const hasAnomaly = data?.anomaly || data?.anomaly_detected || data?.features?.sensors?.properties?.anomaly_detected
+          const markerColor = hasAnomaly ? ANOMALY_COLOR : typeColor
 
-          // Estrarre lat/lng reali dal pacchetto (Fisso in attributes, Mobile in properties)
-          const lat = data?.attributes?.lat || data?.features?.sensors?.properties?.lat || sensor.attributes?.lat || sensor.features?.sensors?.properties?.lat || 39.324540;
-          const lng = data?.attributes?.lng || data?.features?.sensors?.properties?.lng || sensor.attributes?.lng || sensor.features?.sensors?.properties?.lng || 16.467701;
+          // Coordinate: per i wearable aggiornano in tempo reale via SSE,
+          // per i sensori fissi vengono dai attributes (già in sensor.lat/lng)
+          const lat = data?.attributes?.lat ?? data?.lat ?? data?.features?.sensors?.properties?.lat ?? sensor.lat
+          const lng = data?.attributes?.lng ?? data?.lng ?? data?.features?.sensors?.properties?.lng ?? sensor.lng
 
           const r = isSelected ? 10 : 7;
 
           return (
             <Fragment key={sensor.thingId}>
-              {/* Anello animato per anomalia (Tailwind animate-ping) */}
+              {/* Anello lampeggiante per anomalia */}
               {hasAnomaly && (
                 <CircleMarker
                   center={[lat, lng]}
-                  radius={r + 4}
+                  radius={r + 5}
                   pathOptions={{
-                    color: '#ef4444',
+                    color: ANOMALY_COLOR,
                     fillOpacity: 0,
-                    weight: 2,
-                    className: 'animate-ping origin-center'
+                    weight: 2.5,
+                    className: 'anomaly-ring',
+                    interactive: false
                   }}
                 />
               )}
@@ -119,14 +124,17 @@ export default function ParkMap({ initialPins = [], sseThings = {}, selectedSens
       {/* Legenda per tipo */}
       <div className="absolute bottom-3 left-3 bg-slate-900/90 rounded-xl p-3 border border-slate-700/50 text-xs shadow-xl" style={{ zIndex: 1000 }}>
         <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-2">Tipo Sensore</p>
-        {Object.entries(sensorTypesMap).filter(([k]) => k !== 'default').map(([type, cfg]) => (
-          <div key={type} className="flex items-center gap-1.5 mb-1">
-            <span className="w-2.5 h-2.5 rounded-full inline-block flex-shrink-0" style={{ backgroundColor: cfg.color }} />
-            <span className="text-slate-400">{cfg.mapMarkerIcon} {cfg.label}</span>
-          </div>
-        ))}
+        {LEGEND_TYPES.map(type => {
+          const cfg = sensorTypesMap[type]
+          return (
+            <div key={type} className="flex items-center gap-1.5 mb-1">
+              <span className="w-2.5 h-2.5 rounded-full inline-block flex-shrink-0" style={{ backgroundColor: cfg.color }} />
+              <span className="text-slate-400">{cfg.mapMarkerIcon} {cfg.label}</span>
+            </div>
+          )
+        })}
         <div className="flex items-center gap-1.5 mt-1 pt-1 border-t border-slate-700/50">
-          <span className="w-2.5 h-2.5 rounded-full inline-block bg-red-500 flex-shrink-0" />
+          <span className="w-2.5 h-2.5 rounded-full inline-block flex-shrink-0" style={{ backgroundColor: ANOMALY_COLOR }} />
           <span className="text-slate-400">⚠ Anomalia</span>
         </div>
       </div>

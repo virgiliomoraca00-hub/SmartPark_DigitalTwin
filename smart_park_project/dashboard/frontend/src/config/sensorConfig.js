@@ -1,8 +1,9 @@
 // --- 1. CONFIGURAZIONE MAPPA (Basata su attributes.type) ---
 export const sensorTypesMap = {
+  // Legacy names (vecchi flows)
   "vision": {
     label: "Telecamera AI",
-    color: "#679b65ff",     // Blu per la mappa
+    color: "#679b65ff",     // Verde
     mapMarkerIcon: "📷",  // Icona per il pin sulla mappa
     defaultRadius: 15
   },
@@ -14,10 +15,31 @@ export const sensorTypesMap = {
   },
   "activityRecognition": {
     label: "Visitatore (Wearable)",
-    color: "#ef4444",     // Rosso
+    color: "#f97316",     // Arancione
     mapMarkerIcon: "🏃",
     defaultRadius: 5
   },
+
+  // Current names (nuovi flows)
+  "camera": {
+    label: "Telecamera AI",
+    color: "#679b65ff",     // Verde
+    mapMarkerIcon: "📷",
+    defaultRadius: 15
+  },
+  "audio": {
+    label: "Analisi Audio",
+    color: "#8b5cf6",     // Viola
+    mapMarkerIcon: "🎤",
+    defaultRadius: 10
+  },
+  "wearable": {
+    label: "Visitatore (Wearable)",
+    color: "#f97316",     // Arancione
+    mapMarkerIcon: "🏃",
+    defaultRadius: 5
+  },
+
   "environmental": {
     label: "Sensore Ambientale",
     color: "#22d3ee",     // Cyan

@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+@keyframes anomaly-pulse {
+  0%, 100% { stroke-opacity: 0.9; }
+  50%       { stroke-opacity: 0;   }
+}
+.anomaly-ring {
+  animation: anomaly-pulse 1.1s ease-in-out infinite;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;

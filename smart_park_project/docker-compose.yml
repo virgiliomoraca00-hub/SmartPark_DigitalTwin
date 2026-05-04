@@ -266,6 +266,7 @@ services:
   smart-park-ui:
     image: nginx:1.25-alpine
     container_name: smart-park-ui
+    profiles: ["optional"]
     restart: unless-stopped
     ports:
       - "8090:80"
@@ -336,6 +337,10 @@ services:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: admin
       GF_INSTALL_PLUGINS: grafana-clock-panel
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_NAME: "Main Org."
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_SECURITY_ALLOW_EMBEDDING: "true"
     volumes:
       - grafana-data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning
@@ -377,6 +382,7 @@ services:
   smartpark-api:
     build: ./smartpark-api
     container_name: smartpark-api
+    profiles: ["optional"]
     restart: unless-stopped
     ports:
       - "8091:3001"

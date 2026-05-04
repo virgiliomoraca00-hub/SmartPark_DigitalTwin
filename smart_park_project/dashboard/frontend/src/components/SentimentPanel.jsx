@@ -15,7 +15,9 @@ export default function SentimentPanel() {
   const [lastUpdate, setLastUpdate] = useState(null)
 
   const fetchSentiment = () => {
-    fetch('/ditto/2/things?filter=eq(attributes/type,"')
+    fetch('/ditto/2/things?filter=eq(attributes/type,"sentiment")', {
+      headers: { 'Authorization': 'Basic ' + btoa('ditto:ditto') }
+    })
       .then(r => r.json())
       .then(d => {
         setData(d)
