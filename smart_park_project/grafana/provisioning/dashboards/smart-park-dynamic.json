@@ -1,0 +1,232 @@
+{
+  "__inputs": [
+    {
+      "name": "datasource",
+      "label": "InfluxDB",
+      "description": "InfluxDB Flux datasource",
+      "type": "datasource",
+      "pluginId": "influxdb"
+    }
+  ],
+  "__requires": [
+    { "type": "grafana",    "id": "grafana",    "name": "Grafana",    "version": "9.0.0" },
+    { "type": "datasource", "id": "influxdb",   "name": "InfluxDB",   "version": "1.0.0" },
+    { "type": "panel",      "id": "timeseries", "name": "Time series","version": "" },
+    { "type": "panel",      "id": "stat",       "name": "Stat",       "version": "" }
+  ],
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Smart Park — Dashboard Dinamica (variabili sensor_id + field per triangolazione multi-sensore)",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+    {
+      "icon": "external link",
+      "title": "Dashboard Statica",
+      "tooltip": "Apri la dashboard principale",
+      "type": "link",
+      "url": "/d/smart-park-v1/smart-park"
+    }
+  ],
+
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "hide": 0,
+        "label": "Sorgente Dati",
+        "name": "datasource",
+        "options": [],
+        "refresh": 1,
+        "type": "datasource",
+        "pluginId": "influxdb"
+      },
+      {
+        "current": {},
+        "datasource": { "type": "influxdb", "uid": "P951FEA4DE68E13C5" },
+        "description": "ID sensore (device_id in InfluxDB). Multi-selezione supportata via URL params.",
+        "hide": 0,
+        "includeAll": true,
+        "allValue": ".*",
+        "label": "Sensore",
+        "multi": true,
+        "name": "sensor_id",
+        "options": [],
+        "query": "import \"influxdata/influxdb/schema\"\nschema.tagValues(bucket: \"sensor-data\", tag: \"device_id\")",
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": { "type": "influxdb", "uid": "P951FEA4DE68E13C5" },
+        "description": "Campo InfluxDB con prefisso data_. Multi-selezione supportata.",
+        "hide": 0,
+        "includeAll": true,
+        "allValue": ".*",
+        "label": "Metrica",
+        "multi": true,
+        "name": "field",
+        "options": [],
+        "query": "import \"influxdata/influxdb/schema\"\nschema.fieldKeys(bucket: \"sensor-data\")\n  |> filter(fn: (r) => r._value =~ /^data_/)",
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+
+  "panels": [
+
+    {
+      "id": 200,
+      "type": "timeseries",
+      "title": "Serie Temporale — ${field} per ${sensor_id}",
+      "description": "Confronto multi-sensore. Ogni serie = un device_id. Usa il pannello filtri nella web app per selezionare sensori e metriche.",
+      "datasource": { "type": "influxdb", "uid": "${datasource}" },
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 0 },
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "mean", "max", "min"],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 4,
+            "showPoints": "auto",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "influxdb", "uid": "${datasource}" },
+          "refId": "A",
+          "legendFormat": "{{device_id}}",
+          "query": "from(bucket: \"sensor-data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\")\n  |> filter(fn: (r) => contains(value: r[\"device_id\"], set: ${sensor_id:json}))\n  |> filter(fn: (r) => r._field == \"${field}\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> keep(columns: [\"_time\", \"_value\", \"device_id\"])\n  |> yield(name: \"timeseries\")"
+        }
+      ]
+    },
+
+    {
+      "id": 201,
+      "type": "stat",
+      "title": "Ultimo Valore — ${sensor_id}",
+      "description": "Valore più recente per i sensori selezionati (ultimi 5 minuti).",
+      "datasource": { "type": "influxdb", "uid": "${datasource}" },
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 12 },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "blue",   "value": null },
+              { "color": "green",  "value": 0    },
+              { "color": "yellow", "value": 50   },
+              { "color": "red",    "value": 100  }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "influxdb", "uid": "${datasource}" },
+          "refId": "A",
+          "legendFormat": "{{device_id}}",
+          "query": "from(bucket: \"sensor-data\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\")\n  |> filter(fn: (r) => contains(value: r[\"device_id\"], set: ${sensor_id:json}))\n  |> filter(fn: (r) => r._field == \"${field}\")\n  |> last()\n  |> keep(columns: [\"_time\", \"_value\", \"device_id\"])"
+        }
+      ]
+    },
+
+    {
+      "id": 202,
+      "type": "timeseries",
+      "title": "Confronto Multi-Metrica — Triangolazione",
+      "description": "Più metriche di più sensori sullo stesso asse temporale. Ideale per correlare eventi e individuare guasti per zona.",
+      "datasource": { "type": "influxdb", "uid": "${datasource}" },
+      "gridPos": { "h": 14, "w": 24, "x": 0, "y": 18 },
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "mean", "stdDev"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 5,
+            "lineInterpolation": "smooth",
+            "lineWidth": 1.5,
+            "pointSize": 3,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "influxdb", "uid": "${datasource}" },
+          "refId": "A",
+          "legendFormat": "{{device_id}} · {{_field}}",
+          "query": "from(bucket: \"sensor-data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\")\n  |> filter(fn: (r) => contains(value: r[\"device_id\"], set: ${sensor_id:json}))\n  |> filter(fn: (r) => contains(value: r._field, set: ${field:json}))\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> keep(columns: [\"_time\", \"_value\", \"device_id\", \"_field\"])\n  |> yield(name: \"compare\")"
+        }
+      ]
+    }
+
+  ],
+
+  "refresh": "15s",
+  "schemaVersion": 42,
+  "style": "dark",
+  "tags": ["smartpark", "dynamic", "triangolazione"],
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Smart Park — Dinamico",
+  "uid": "smart-park-dynamic",
+  "version": 1
+}

@@ -51,7 +51,7 @@ export default function App() {
       />
 
       {advancedOpen && (
-        <AdvancedMonitoring onClose={() => setAdvancedOpen(false)} />
+        <AdvancedMonitoring onClose={() => setAdvancedOpen(false)} sseThings={sseThings} />
       )}
 
       {sentimentOpen && (
