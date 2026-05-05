@@ -26,7 +26,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "${datasource}"
+        "uid": "P951FEA4DE68E13C5"
       },
       "fieldConfig": {
         "defaults": {
@@ -85,7 +85,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "${datasource}"
+            "uid": "P951FEA4DE68E13C5"
           },
           "query": "from(bucket: \"sensor-data\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"data_temperature_c\" and r.type == \"environmental\")\n  |> mean()",
           "refId": "A",
@@ -96,7 +96,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "${datasource}"
+        "uid": "P951FEA4DE68E13C5"
       },
       "fieldConfig": {
         "defaults": {
@@ -157,7 +157,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "${datasource}"
+            "uid": "P951FEA4DE68E13C5"
           },
           "query": "from(bucket: \"sensor-data\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"data_humidity_pct\" and r.type == \"environmental\")\n  |> mean()",
           "refId": "A",
@@ -168,7 +168,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "${datasource}"
+        "uid": "P951FEA4DE68E13C5"
       },
       "fieldConfig": {
         "defaults": {
@@ -227,7 +227,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "${datasource}"
+            "uid": "P951FEA4DE68E13C5"
           },
           "query": "from(bucket: \"sensor-data\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"data_co2_ppm\" and r.type == \"environmental\")\n  |> mean()",
           "refId": "A",
@@ -238,7 +238,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "${datasource}"
+        "uid": "P951FEA4DE68E13C5"
       },
       "fieldConfig": {
         "defaults": {
@@ -293,7 +293,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "${datasource}"
+            "uid": "P951FEA4DE68E13C5"
           },
           "query": "from(bucket: \"sensor-data\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"data_voc_ppb\" and r.type == \"environmental\")\n  |> mean()",
           "refId": "A",
@@ -304,7 +304,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "${datasource}"
+        "uid": "P951FEA4DE68E13C5"
       },
       "fieldConfig": {
         "defaults": {
@@ -350,7 +350,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "${datasource}"
+            "uid": "P951FEA4DE68E13C5"
           },
           "query": "from(bucket: \"sensor-data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"data_temperature_c\" and r.type == \"environmental\" and (\"${device_id}\" == \"\" or r.device_id == \"${device_id}\"))\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> keep(columns: [\"_time\", \"_value\", \"device_id\"])\n  |> yield(name: \"temperature\")",
           "refId": "A",
@@ -361,7 +361,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "${datasource}"
+        "uid": "P951FEA4DE68E13C5"
       },
       "fieldConfig": {
         "defaults": {
@@ -409,7 +409,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "${datasource}"
+            "uid": "P951FEA4DE68E13C5"
           },
           "query": "from(bucket: \"sensor-data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"data_humidity_pct\" and r.type == \"environmental\" and (\"${device_id}\" == \"\" or r.device_id == \"${device_id}\"))\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> keep(columns: [\"_time\", \"_value\", \"device_id\"])\n  |> yield(name: \"humidity\")",
           "refId": "A",
@@ -418,7 +418,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "${datasource}"
+            "uid": "P951FEA4DE68E13C5"
           },
           "query": "from(bucket: \"sensor-data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"data_co2_ppm\" and r.type == \"environmental\" and (\"${device_id}\" == \"\" or r.device_id == \"${device_id}\"))\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> map(fn: (r) => ({r with _value: r._value / 10.0}))\n  |> keep(columns: [\"_time\", \"_value\", \"device_id\"])\n  |> yield(name: \"co2_scaled\")",
           "refId": "B",
@@ -441,7 +441,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "${datasource}"
+        "uid": "P951FEA4DE68E13C5"
       },
       "fieldConfig": {
         "defaults": {
@@ -497,7 +497,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "${datasource}"
+            "uid": "P951FEA4DE68E13C5"
           },
           "query": "from(bucket: \"sensor-data\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"data_person_count\" and r.type == \"vision\")\n  |> last()\n  |> sum()",
           "refId": "A",
@@ -508,7 +508,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "${datasource}"
+        "uid": "P951FEA4DE68E13C5"
       },
       "fieldConfig": {
         "defaults": {
@@ -560,7 +560,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "${datasource}"
+            "uid": "P951FEA4DE68E13C5"
           },
           "query": "from(bucket: \"sensor-data\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"data_anomaly_score\" and r.type == \"vision\" and r._value == 1.0)\n  |> count()",
           "refId": "A",
@@ -571,7 +571,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "${datasource}"
+        "uid": "P951FEA4DE68E13C5"
       },
       "fieldConfig": {
         "defaults": {
@@ -629,7 +629,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "${datasource}"
+            "uid": "P951FEA4DE68E13C5"
           },
           "query": "from(bucket: \"sensor-data\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"data_anomaly_score\" and r.type == \"vision\")\n  |> mean()",
           "refId": "A",
@@ -640,7 +640,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "${datasource}"
+        "uid": "P951FEA4DE68E13C5"
       },
       "fieldConfig": {
         "defaults": {
@@ -686,7 +686,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "${datasource}"
+            "uid": "P951FEA4DE68E13C5"
           },
           "query": "from(bucket: \"sensor-data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"data_person_count\" and r.type == \"vision\" and (\"${device_id}\" == \"\" or r.device_id == \"${device_id}\"))\n  |> aggregateWindow(every: v.windowPeriod, fn: max, createEmpty: false)\n  |> keep(columns: [\"_time\", \"_value\", \"device_id\"])\n  |> yield(name: \"person_count\")",
           "refId": "A",
@@ -697,7 +697,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "${datasource}"
+        "uid": "P951FEA4DE68E13C5"
       },
       "fieldConfig": {
         "defaults": {
@@ -757,7 +757,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "${datasource}"
+            "uid": "P951FEA4DE68E13C5"
           },
           "query": "from(bucket: \"sensor-data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"data_anomaly_score\" and r.type == \"vision\" and r._value == 1.0)",
           "refId": "A",
@@ -801,7 +801,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "${datasource}"
+        "uid": "P951FEA4DE68E13C5"
       },
       "fieldConfig": {
         "defaults": {
@@ -857,7 +857,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "${datasource}"
+            "uid": "P951FEA4DE68E13C5"
           },
           "query": "from(bucket: \"sensor-data\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"data_noise_db\" and r.type == \"sentimentAnalysis\")\n  |> mean()",
           "refId": "A",
@@ -868,7 +868,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "${datasource}"
+        "uid": "P951FEA4DE68E13C5"
       },
       "fieldConfig": {
         "defaults": {
@@ -924,7 +924,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "${datasource}"
+            "uid": "P951FEA4DE68E13C5"
           },
           "query": "from(bucket: \"sensor-data\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"data_noise_db\" and r.type == \"sentimentAnalysis\")\n  |> mean()",
           "refId": "A",
@@ -935,7 +935,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "${datasource}"
+        "uid": "P951FEA4DE68E13C5"
       },
       "fieldConfig": {
         "defaults": {
@@ -991,7 +991,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "${datasource}"
+            "uid": "P951FEA4DE68E13C5"
           },
           "query": "from(bucket: \"sensor-data\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"data_sentiment_score\" and r.type == \"sentimentAnalysis\")\n  |> mean()",
           "refId": "A",
@@ -1002,7 +1002,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "${datasource}"
+        "uid": "P951FEA4DE68E13C5"
       },
       "fieldConfig": {
         "defaults": {
@@ -1049,7 +1049,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "${datasource}"
+            "uid": "P951FEA4DE68E13C5"
           },
           "query": "from(bucket: \"sensor-data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"data_noise_db\" and r.type == \"sentimentAnalysis\" and (\"${device_id}\" == \"\" or r.device_id == \"${device_id}\"))\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> keep(columns: [\"_time\", \"_value\", \"device_id\"])\n  |> yield(name: \"db_a\")",
           "refId": "A",
@@ -1072,7 +1072,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "${datasource}"
+        "uid": "P951FEA4DE68E13C5"
       },
       "fieldConfig": {
         "defaults": {
@@ -1132,7 +1132,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "${datasource}"
+            "uid": "P951FEA4DE68E13C5"
           },
           "query": "from(bucket: \"sensor-data\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"data_heart_rate_bpm\" and r.type == \"activityRecognition\")\n  |> mean()",
           "refId": "A",
@@ -1143,7 +1143,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "${datasource}"
+        "uid": "P951FEA4DE68E13C5"
       },
       "fieldConfig": {
         "defaults": {
@@ -1195,7 +1195,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "${datasource}"
+            "uid": "P951FEA4DE68E13C5"
           },
           "query": "from(bucket: \"sensor-data\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"data_steps_total\" and r.type == \"activityRecognition\")\n  |> last()\n  |> sum()",
           "refId": "A",
@@ -1206,7 +1206,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "${datasource}"
+        "uid": "P951FEA4DE68E13C5"
       },
       "fieldConfig": {
         "defaults": {
@@ -1262,7 +1262,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "${datasource}"
+            "uid": "P951FEA4DE68E13C5"
           },
           "query": "from(bucket: \"sensor-data\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"data_gsr_kohm\" and r.type == \"activityRecognition\")\n  |> mean()",
           "refId": "A",
@@ -1273,7 +1273,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "${datasource}"
+        "uid": "P951FEA4DE68E13C5"
       },
       "fieldConfig": {
         "defaults": {
@@ -1320,7 +1320,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "${datasource}"
+            "uid": "P951FEA4DE68E13C5"
           },
           "query": "from(bucket: \"sensor-data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"data_heart_rate_bpm\" and r.type == \"activityRecognition\" and (\"${device_id}\" == \"\" or r.device_id == \"${device_id}\"))\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> keep(columns: [\"_time\", \"_value\", \"device_id\"])\n  |> yield(name: \"heart_rate\")",
           "refId": "A",

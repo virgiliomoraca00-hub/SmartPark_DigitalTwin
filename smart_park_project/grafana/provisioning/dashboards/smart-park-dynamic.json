@@ -96,7 +96,7 @@
       "type": "timeseries",
       "title": "Serie Temporale — ${field} per ${sensor_id}",
       "description": "Confronto multi-sensore. Ogni serie = un device_id. Usa il pannello filtri nella web app per selezionare sensori e metriche.",
-      "datasource": { "type": "influxdb", "uid": "${datasource}" },
+      "datasource": { "type": "influxdb", "uid": "P951FEA4DE68E13C5" },
       "gridPos": { "h": 12, "w": 24, "x": 0, "y": 0 },
       "options": {
         "legend": {
@@ -124,10 +124,10 @@
       },
       "targets": [
         {
-          "datasource": { "type": "influxdb", "uid": "${datasource}" },
+          "datasource": { "type": "influxdb", "uid": "P951FEA4DE68E13C5" },
           "refId": "A",
           "legendFormat": "{{device_id}}",
-          "query": "from(bucket: \"sensor-data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\")\n  |> filter(fn: (r) => contains(value: r[\"device_id\"], set: ${sensor_id:json}))\n  |> filter(fn: (r) => r._field == \"${field}\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> keep(columns: [\"_time\", \"_value\", \"device_id\"])\n  |> yield(name: \"timeseries\")"
+          "query": "from(bucket: \"sensor-data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\")\n  |> filter(fn: (r) => r.device_id =~ /^(${sensor_id:regex})$/)\n  |> filter(fn: (r) => r._field =~ /^(${field:regex})$/)\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> keep(columns: [\"_time\", \"_value\", \"device_id\"])\n  |> yield(name: \"timeseries\")"
         }
       ]
     },
@@ -137,7 +137,7 @@
       "type": "stat",
       "title": "Ultimo Valore — ${sensor_id}",
       "description": "Valore più recente per i sensori selezionati (ultimi 5 minuti).",
-      "datasource": { "type": "influxdb", "uid": "${datasource}" },
+      "datasource": { "type": "influxdb", "uid": "P951FEA4DE68E13C5" },
       "gridPos": { "h": 6, "w": 24, "x": 0, "y": 12 },
       "options": {
         "colorMode": "background",
@@ -168,10 +168,10 @@
       },
       "targets": [
         {
-          "datasource": { "type": "influxdb", "uid": "${datasource}" },
+          "datasource": { "type": "influxdb", "uid": "P951FEA4DE68E13C5" },
           "refId": "A",
           "legendFormat": "{{device_id}}",
-          "query": "from(bucket: \"sensor-data\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\")\n  |> filter(fn: (r) => contains(value: r[\"device_id\"], set: ${sensor_id:json}))\n  |> filter(fn: (r) => r._field == \"${field}\")\n  |> last()\n  |> keep(columns: [\"_time\", \"_value\", \"device_id\"])"
+          "query": "from(bucket: \"sensor-data\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\")\n  |> filter(fn: (r) => r.device_id =~ /^(${sensor_id:regex})$/)\n  |> filter(fn: (r) => r._field =~ /^(${field:regex})$/)\n  |> last()\n  |> keep(columns: [\"_time\", \"_value\", \"device_id\"])"
         }
       ]
     },
@@ -181,7 +181,7 @@
       "type": "timeseries",
       "title": "Confronto Multi-Metrica — Triangolazione",
       "description": "Più metriche di più sensori sullo stesso asse temporale. Ideale per correlare eventi e individuare guasti per zona.",
-      "datasource": { "type": "influxdb", "uid": "${datasource}" },
+      "datasource": { "type": "influxdb", "uid": "P951FEA4DE68E13C5" },
       "gridPos": { "h": 14, "w": 24, "x": 0, "y": 18 },
       "options": {
         "legend": {
@@ -209,10 +209,10 @@
       },
       "targets": [
         {
-          "datasource": { "type": "influxdb", "uid": "${datasource}" },
+          "datasource": { "type": "influxdb", "uid": "P951FEA4DE68E13C5" },
           "refId": "A",
           "legendFormat": "{{device_id}} · {{_field}}",
-          "query": "from(bucket: \"sensor-data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\")\n  |> filter(fn: (r) => contains(value: r[\"device_id\"], set: ${sensor_id:json}))\n  |> filter(fn: (r) => contains(value: r._field, set: ${field:json}))\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> keep(columns: [\"_time\", \"_value\", \"device_id\", \"_field\"])\n  |> yield(name: \"compare\")"
+          "query": "from(bucket: \"sensor-data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\")\n  |> filter(fn: (r) => r.device_id =~ /^(${sensor_id:regex})$/)\n  |> filter(fn: (r) => r._field =~ /^(${field:regex})$/)\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> keep(columns: [\"_time\", \"_value\", \"device_id\", \"_field\"])\n  |> yield(name: \"compare\")"
         }
       ]
     }
@@ -230,3 +230,6 @@
   "uid": "smart-park-dynamic",
   "version": 1
 }
+
+
+
