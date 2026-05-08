@@ -75,6 +75,22 @@ export const telemetryDictionary = {
   "co2_ppm": { label: "Livello CO2", unit: "ppm", icon: "☁️", color: "grey" },
   "air_quality": { label: "Qualità Aria", unit: "AQI", icon: "🍃", color: "green" },
   "noise": { label: "Rumore", unit: "dB", icon: "🔊", color: "yellow" },
+  "light":       { label: "Luminosità",     unit: "lux", icon: "💡", color: "yellow" },
+  "pressure":    { label: "Pressione",      unit: "Pa",  icon: "🔽", color: "blue"   },
+
+  // Metriche EG5120 (gateway industriale Robustel)
+  "tof":                  { label: "Distanza ToF",          unit: "mm",  icon: "📏" },
+  "angle":                { label: "Angolo",                unit: "°",   icon: "📐" },
+  "accX":                 { label: "Accelerazione X",       unit: "mg",  icon: "📊" },
+  "accY":                 { label: "Accelerazione Y",       unit: "mg",  icon: "📊" },
+  "accZ":                 { label: "Accelerazione Z",       unit: "mg",  icon: "📊" },
+  "vibrAccX":             { label: "Vibrazione X",          unit: "g",   icon: "〰️" },
+  "vibrAccY":             { label: "Vibrazione Y",          unit: "g",   icon: "〰️" },
+  "vibrAccZ":             { label: "Vibrazione Z",          unit: "g",   icon: "〰️" },
+  "prediction_confidence":{ label: "Confidenza Previsione", unit: "%",   icon: "🧠" },
+  "weather_prediction":   { label: "Previsione Meteo",      unit: "",    icon: "🌤️" },
+  "prediction_time":      { label: "Tempo Previsione",      unit: "s",   icon: "⏱️" },
+  "status":               { label: "Stato",                 unit: "",    icon: "🚶" },
 
   // Metriche Sentiment
   "sentiment": { label: "Sentiment", unit: "", icon: "💬" },

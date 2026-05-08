@@ -58,17 +58,16 @@ export default function StatusBar({ sseThings = {}, connected, totalPins = 0, on
   const sentCfg = dominant ? SENTIMENT_CFG[dominant] : null
 
   return (
-    <div className="bg-slate-900 border-b border-slate-700 px-6 py-4 flex items-center gap-6 shadow-xl relative z-20">
+    <div className="bg-slate-900 border-b border-slate-700 px-6 py-7 flex items-center gap-6 shadow-xl relative z-20">
       {/* Advanced monitoring button — centered absolutely */}
       <button
         onClick={onAdvancedToggle}
-        className={`absolute left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-1.5 rounded-lg border transition-all text-[11px] font-bold uppercase tracking-wider ${
+        className={`absolute left-1/2 -translate-x-1/2 flex items-center gap-2 px-6 py-2.5 rounded-lg border transition-all text-sm font-bold uppercase tracking-wider ${
           advancedOpen
             ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
             : 'bg-slate-800/60 border-slate-600/40 text-slate-400 hover:text-slate-200 hover:border-slate-500'
         }`}
       >
-        <span className="text-sm">📊</span>
         Monitoraggio Avanzato
       </button>
       {/* Connection status */}

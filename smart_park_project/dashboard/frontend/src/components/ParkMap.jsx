@@ -234,20 +234,20 @@ export default function ParkMap({ initialPins = [], sseThings = {}, selectedSens
       </MapContainer>
 
       {/* Legenda per tipo */}
-      <div className="absolute bottom-3 left-3 bg-slate-900/90 rounded-xl p-3 border border-slate-700/50 text-xs shadow-xl" style={{ zIndex: 1000 }}>
-        <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-2">Tipo Sensore</p>
+      <div className="absolute bottom-3 left-3 bg-slate-900/90 py-4 pr-5 border border-slate-700/50 text-xs shadow-xl" style={{ zIndex: 1000 }}>
+        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 pl-4">Tipo Sensore</p>
         {LEGEND_TYPES.map(type => {
           const cfg = sensorTypesMap[type]
           return (
-            <div key={type} className="flex items-center gap-1.5 mb-1">
-              <span className="w-2.5 h-2.5 rounded-full inline-block flex-shrink-0" style={{ backgroundColor: cfg.color }} />
-              <span className="text-slate-400">{cfg.mapMarkerIcon} {cfg.label}</span>
+            <div key={type} className="flex items-center gap-2.5 py-1 pl-4">
+              <span className="w-3 h-3 rounded-full inline-block flex-shrink-0" style={{ backgroundColor: cfg.color }} />
+              <span className="text-slate-300">{cfg.mapMarkerIcon} {cfg.label}</span>
             </div>
           )
         })}
-        <div className="flex items-center gap-1.5 mt-1 pt-1 border-t border-slate-700/50">
-          <span className="w-2.5 h-2.5 rounded-full inline-block flex-shrink-0" style={{ backgroundColor: ANOMALY_COLOR }} />
-          <span className="text-slate-400">⚠ Anomalia</span>
+        <div className="flex items-center gap-2.5 mt-2 pt-2 border-t border-slate-700/50 pl-4">
+          <span className="w-3 h-3 rounded-full inline-block flex-shrink-0" style={{ backgroundColor: ANOMALY_COLOR }} />
+          <span className="text-slate-300">⚠ Anomalia</span>
         </div>
       </div>
 
@@ -255,18 +255,18 @@ export default function ParkMap({ initialPins = [], sseThings = {}, selectedSens
       <button
         onClick={() => setShowZones(z => !z)}
         title={showZones ? 'Nascondi zone' : 'Mostra zone'}
-        className={`absolute bottom-3 right-3 flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[10px] font-bold border shadow-xl transition-all ${
+        className={`absolute bottom-3 right-3 flex items-center gap-2 px-4 py-2.5 text-sm font-bold border shadow-xl transition-all ${
           showZones
             ? 'bg-slate-800/95 text-emerald-400 border-emerald-500/40 hover:border-emerald-400'
             : 'bg-slate-900/90 text-slate-500 border-slate-700/50 hover:text-slate-300'
         }`}
         style={{ zIndex: 1000 }}
       >
-        <span>🗺️</span>
+        <span className="text-base">🗺️</span>
         <span>{showZones ? 'Zone ON' : 'Zone OFF'}</span>
-        <span className="text-[8px] opacity-60 font-normal">
-          {ZONES.length > 0 ? `${ZONES.length} POI` : 'Geo-Grid'}
-        </span>
+        {ZONES.length > 0 && (
+          <span className="text-xs opacity-60 font-normal">{ZONES.length} POI</span>
+        )}
       </button>
     </div>
   )
