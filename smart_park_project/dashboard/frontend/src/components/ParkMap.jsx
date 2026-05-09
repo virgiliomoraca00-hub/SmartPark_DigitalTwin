@@ -1,7 +1,7 @@
 import { Fragment, useState } from 'react'
 import { MapContainer, TileLayer, CircleMarker, Tooltip, Polygon, Circle, Rectangle } from 'react-leaflet'
-import { getTypeConfig, sensorTypesMap } from '../config/sensorConfig'
-import { ZONES, GRID_LABELS } from '../utils/zoneConfig'
+import { getTypeConfig, sensorTypesMap, getTelemetryMeta } from '../config/sensorConfig'
+import { ZONES, GRID_LABELS, PARK_BOUNDS } from '../utils/zoneConfig'
 import 'leaflet/dist/leaflet.css'
 
 const ANOMALY_COLOR = '#ef4444'
@@ -23,7 +23,7 @@ const ZONE_COLORS = [
  * Modalità Geo-Grid (ZONES vuoto): disegna celle rettangolari sul bbox dei sensori.
  * Reagisce automaticamente alle modifiche di zoneConfig.js via Vite HMR.
  */
-function ZoneOverlay({ initialPins }) {
+function ZoneOverlay() {
   // ── Modalità POI: ZONES ha zone semantiche ─────────────────────────────────
   if (ZONES.length > 0) {
     return ZONES.map((zone, i) => (
@@ -50,31 +50,19 @@ function ZoneOverlay({ initialPins }) {
     ))
   }
 
-  // ── Modalità Geo-Grid: calcola bbox dai pin reali ───────────────────────────
-  const coords = initialPins.filter(p => p.lat != null && p.lng != null)
-  if (coords.length < 2) return null
-
-  const lats = coords.map(p => p.lat)
-  const lngs = coords.map(p => p.lng)
-  const minLat = Math.min(...lats), maxLat = Math.max(...lats)
-  const minLng = Math.min(...lngs), maxLng = Math.max(...lngs)
-
-  // Padding 15% del bbox per evitare celle degeneri
-  const latPad = Math.max((maxLat - minLat) * 0.15, 0.0003)
-  const lngPad = Math.max((maxLng - minLng) * 0.15, 0.0003)
-  const bLatMin = minLat - latPad, bLatMax = maxLat + latPad
-  const bLngMin = minLng - lngPad, bLngMax = maxLng + lngPad
-  const latRange = bLatMax - bLatMin
-  const lngRange = bLngMax - bLngMin
+  // ── Modalità Geo-Grid: usa PARK_BOUNDS fisso (perimetro reale della riserva) ─
+  const { minLat, maxLat, minLng, maxLng } = PARK_BOUNDS
+  const latRange = maxLat - minLat
+  const lngRange = maxLng - minLng
 
   const cells = []
   for (let row = 0; row < 2; row++) {
     for (let col = 0; col < 3; col++) {
       // Riga 0 = Nord (lat alta), riga 1 = Sud (lat bassa)
-      const cellLatMax = bLatMax - (row / 2) * latRange
-      const cellLatMin = bLatMax - ((row + 1) / 2) * latRange
-      const cellLngMin = bLngMin + (col / 3) * lngRange
-      const cellLngMax = bLngMin + ((col + 1) / 3) * lngRange
+      const cellLatMax = maxLat - (row / 2) * latRange
+      const cellLatMin = maxLat - ((row + 1) / 2) * latRange
+      const cellLngMin = minLng + (col / 3) * lngRange
+      const cellLngMax = minLng + ((col + 1) / 3) * lngRange
       const idx = row * 3 + col
       cells.push({
         bounds: [[cellLatMin, cellLngMin], [cellLatMax, cellLngMax]],
@@ -95,12 +83,13 @@ function ZoneOverlay({ initialPins }) {
           fillOpacity: 0.06,
           weight:      1,
           dashArray:   '4 4',
+          interactive: false,
         }}
       />
       <Circle
         center={cell.center}
         radius={1}  // punto invisibile — solo per il Tooltip
-        pathOptions={{ fillOpacity: 0, opacity: 0 }}
+        pathOptions={{ fillOpacity: 0, opacity: 0, interactive: false }}
       >
         <Tooltip permanent direction="center" opacity={0.85}
           className="zone-label-tooltip"
@@ -114,7 +103,7 @@ function ZoneOverlay({ initialPins }) {
   ))
 }
 
-export default function ParkMap({ initialPins = [], sseThings = {}, selectedSensor, onSelectSensor }) {
+export default function ParkMap({ initialPins = [], sseThings = {}, selectedSensor, onSelectSensor, metricFilter }) {
   const [showZones, setShowZones] = useState(true)
   // Limiti geografici restrittivi (pochi km attorno ai Giganti della Sila)
   const parkBounds = [
@@ -170,7 +159,7 @@ export default function ParkMap({ initialPins = [], sseThings = {}, selectedSens
         />
 
         {/* Layer Zone — POI circles o Geo-Grid rettangolare */}
-        {showZones && <ZoneOverlay initialPins={initialPins} />}
+        {showZones && <ZoneOverlay />}
 
         {initialPins.map(sensor => {
           const data = sseThings[sensor.thingId]
@@ -189,6 +178,20 @@ export default function ParkMap({ initialPins = [], sseThings = {}, selectedSens
           const lng = data?.attributes?.lng ?? data?.lng ?? data?.features?.sensors?.properties?.lng ?? sensor.lng
 
           const r = isSelected ? 10 : 7;
+
+          // Valore metric live
+          let metricValue = null
+          let metricMeta = null
+          if (metricFilter && data) {
+            // Cerchiamo la metrica sia con data_ prefix che senza
+            const props = data.features?.sensors?.properties || {}
+            let val = props[metricFilter]
+            if (val === undefined) val = props[`data_${metricFilter}`]
+            if (val !== undefined) {
+               metricValue = val
+               metricMeta = getTelemetryMeta(metricFilter)
+            }
+          }
 
           return (
             <Fragment key={sensor.thingId}>
@@ -227,6 +230,15 @@ export default function ParkMap({ initialPins = [], sseThings = {}, selectedSens
                     <span className="text-[10px] text-gray-400 mb-1 block">ID: {sensor.thingId}</span>
                   </div>
                 </Tooltip>
+
+                {/* Permanent Tooltip per il valore della metrica (se attiva) */}
+                {metricValue !== null && (
+                  <Tooltip permanent direction="bottom" offset={[0, r + 2]} opacity={0.9} className="metric-live-tooltip">
+                    <div className="font-sans text-[10px] font-bold text-sky-400 bg-slate-900/80 px-1 py-0.5 rounded border border-sky-500/30 whitespace-nowrap shadow-lg">
+                      {metricMeta?.icon} {typeof metricValue === 'number' ? metricValue.toFixed(1) : metricValue} <span className="text-[9px] text-sky-500/70">{metricMeta?.unit}</span>
+                    </div>
+                  </Tooltip>
+                )}
               </CircleMarker>
             </Fragment>
           )
@@ -264,9 +276,9 @@ export default function ParkMap({ initialPins = [], sseThings = {}, selectedSens
       >
         <span className="text-base">🗺️</span>
         <span>{showZones ? 'Zone ON' : 'Zone OFF'}</span>
-        {ZONES.length > 0 && (
-          <span className="text-xs opacity-60 font-normal">{ZONES.length} POI</span>
-        )}
+        <span className="text-xs opacity-60 font-normal">
+          {ZONES.length > 0 ? `${ZONES.length} POI` : '6 aree'}
+        </span>
       </button>
     </div>
   )

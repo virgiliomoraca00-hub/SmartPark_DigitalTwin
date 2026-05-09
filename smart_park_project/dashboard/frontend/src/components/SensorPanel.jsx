@@ -1,41 +1,8 @@
 import { getTypeConfig, getTelemetryMeta } from '../config/sensorConfig'
 
 const GRAFANA_BASE = 'http://localhost:3000'
-const DASHBOARD_UID = 'smart-park-v1'
-const DASHBOARD_SLUG = 'smart-park'
-const TIME_PARAMS = 'from=now-30m&to=now&refresh=5s&theme=dark'
-
-const GRAFANA_PANELS = {
-  environmental: [
-    { id: 10, title: 'Temperatura (°C)', height: 220 },
-    { id: 11, title: 'Umidità & CO₂', height: 220 },
-  ],
-  vision: [
-    { id: 13, title: 'Persone rilevate', height: 230 },
-  ],
-  camera: [
-    { id: 13, title: 'Persone rilevate', height: 230 },
-  ],
-  sentimentAnalysis: [
-    { id: 23, title: 'Sentiment Score', height: 250 },
-    { id: 14, title: 'Rumore dB', height: 250 },
-  ],
-  audio: [
-    { id: 23, title: 'Sentiment Score', height: 250 },
-    { id: 14, title: 'Rumore dB', height: 250 },
-  ],
-  activityRecognition: [
-    { id: 33, title: 'Heart Rate', height: 250 },
-  ],
-  wearable: [
-    { id: 33, title: 'Heart Rate', height: 250 },
-  ],
-}
-
-function grafanaUrl(panelId, deviceId) {
-  const deviceParam = deviceId ? `&var-device_id=${encodeURIComponent(deviceId)}` : ''
-  return `${GRAFANA_BASE}/d-solo/${DASHBOARD_UID}/${DASHBOARD_SLUG}?orgId=1&panelId=${panelId}&${TIME_PARAMS}${deviceParam}`
-}
+const DASHBOARD_UID = 'smart-park-dynamic'
+const DASHBOARD_SLUG = 'smart-park-dynamic'
 
 // "smartpark:cam-202" → "cam-202"
 function extractDeviceId(thingId) {
@@ -44,43 +11,33 @@ function extractDeviceId(thingId) {
   return colon !== -1 ? thingId.slice(colon + 1) : thingId
 }
 
-function GrafanaCharts({ sensorType, deviceId }) {
-  const panels = GRAFANA_PANELS[sensorType]
-  if (!panels) return null
+// Calcola quanto tempo è passato dall'ultimo aggiornamento
+function timeAgo(dateString) {
+  if (!dateString) return 'Sconosciuto'
+  const date = new Date(dateString)
+  if (isNaN(date.getTime())) return 'Non valido'
 
-  return (
-    <div className="space-y-4 pt-2">
-      <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] px-1">
-        Grafici Storici &mdash; {deviceId}
-      </h3>
-      {panels.map(panel => (
-        <div key={panel.id} className="rounded-2xl overflow-hidden border border-slate-700/40">
-          <iframe
-            src={grafanaUrl(panel.id, deviceId)}
-            width="100%"
-            height={panel.height}
-            style={{ border: 'none' }}
-            title={panel.title}
-            loading="lazy"
-          />
-        </div>
-      ))}
-      <p className="text-[9px] text-slate-600 px-1">
-        Ultimi 30 min · aggiornamento ogni 5s ·{' '}
-        <a
-          href={`${GRAFANA_BASE}/d/${DASHBOARD_UID}/${DASHBOARD_SLUG}`}
-          target="_blank"
-          rel="noreferrer"
-          className="text-slate-500 hover:text-slate-300 underline"
-        >
-          Dashboard completa
-        </a>
-      </p>
-    </div>
-  )
+  const diffMs = Date.now() - date.getTime()
+  const diffSec = Math.floor(diffMs / 1000)
+  const diffMin = Math.floor(diffSec / 60)
+  const diffHour = Math.floor(diffMin / 60)
+  const diffDay = Math.floor(diffHour / 24)
+
+  if (diffSec < 60) return 'Pochi secondi fa'
+  if (diffMin < 60) return `${diffMin} min fa`
+  if (diffHour < 24) return `${diffHour} ${diffHour === 1 ? 'ora' : 'ore'} fa`
+  return `${diffDay} ${diffDay === 1 ? 'giorno' : 'giorni'} fa`
 }
 
-export default function SensorPanel({ sensorInfo, liveData, connected, onClose }) {
+// Verifica se il sensore è offline (nessun dato da > 1 ora)
+function isSensorOffline(dateString) {
+  if (!dateString) return false // se non c'è timestamp, non lo dichiariamo offline a prescindere
+  const date = new Date(dateString)
+  if (isNaN(date.getTime())) return false
+  return (Date.now() - date.getTime()) > (60 * 60 * 1000) // 1 ora in millisecondi
+}
+
+export default function SensorPanel({ sensorInfo, liveData, connected, onClose, onOpenAdvanced }) {
   const thingId = sensorInfo?.thingId || sensorInfo?.id
   const deviceId = extractDeviceId(thingId)
 
@@ -92,6 +49,24 @@ export default function SensorPanel({ sensorInfo, liveData, connected, onClose }
   const telemetryData = data.features?.sensors?.properties || data.attributes || {}
 
   const hasAnomaly = telemetryData.anomaly_detected || data.anomaly || false
+  
+  // Trova il timestamp dal payload flattato o dalle properties
+  const timestamp = data.timestamp || telemetryData.timestamp
+  const lastUpdateStr = timeAgo(timestamp)
+  const isStale = isSensorOffline(timestamp)
+  const isActuallyConnected = connected && !isStale
+
+  // Formatta l'orario assoluto
+  let exactTimeStr = ''
+  if (timestamp) {
+    const date = new Date(timestamp)
+    if (!isNaN(date.getTime())) {
+      exactTimeStr = date.toLocaleString('it-IT', { 
+        day: '2-digit', month: '2-digit', year: 'numeric', 
+        hour: '2-digit', minute: '2-digit', second: '2-digit' 
+      })
+    }
+  }
 
   const displayMetrics = Object.entries(telemetryData).filter(([key]) => key !== 'lat' && key !== 'lng')
 
@@ -133,20 +108,33 @@ export default function SensorPanel({ sensorInfo, liveData, connected, onClose }
         <div className="p-5 space-y-6">
 
           {/* Status badges */}
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 border ${
-              connected
+          <div className="flex items-start gap-3 flex-wrap">
+            <div className={`mt-0.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 border ${
+              isActuallyConnected
                 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
                 : 'bg-slate-800 text-slate-500 border-slate-700'
             }`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${connected ? 'bg-emerald-400 animate-pulse' : 'bg-slate-600'}`} />
-              {connected ? 'Live SSE' : 'Offline'}
+              <span className={`w-1.5 h-1.5 rounded-full ${isActuallyConnected ? 'bg-emerald-400 animate-pulse' : 'bg-slate-600'}`} />
+              {isActuallyConnected ? 'Live SSE' : (isStale ? 'Stale / Offline' : 'Offline')}
             </div>
             {hasAnomaly && (
-              <div className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-red-500/10 text-red-400 border border-red-500/20 animate-pulse">
+              <div className="mt-0.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-red-500/10 text-red-400 border border-red-500/20 animate-pulse">
                 ⚠ Anomalia
               </div>
             )}
+            
+            {/* Last Update Badge in risalto con data/ora assoluta */}
+            <div className="ml-auto flex flex-col items-end gap-1">
+              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] bg-slate-800/80 border border-slate-700 font-bold">
+                <span className="text-slate-400">⏱ Aggiornato:</span>
+                <span className={isStale ? "text-amber-400" : "text-sky-400"}>{lastUpdateStr}</span>
+              </div>
+              {exactTimeStr && (
+                <div className="text-[10px] text-slate-500 font-mono pr-2">
+                  {exactTimeStr}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Real-time metrics — 2 columns */}
@@ -199,8 +187,41 @@ export default function SensorPanel({ sensorInfo, liveData, connected, onClose }
             </div>
           )}
 
-          {/* Grafana charts — below all data */}
-          <GrafanaCharts sensorType={sensorType} deviceId={deviceId} />
+          {/* Deep link — Monitoraggio Avanzato */}
+          <div className="space-y-3 pt-1">
+            <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] px-1">Analisi Storica</h3>
+
+            {/* Bottone principale */}
+            <button
+              onClick={() => onOpenAdvanced?.(thingId)}
+              className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/25 hover:bg-emerald-500/20 hover:border-emerald-500/50 transition-all group"
+            >
+              <span className="text-2xl">📊</span>
+              <div className="flex-1 text-left">
+                <div className="text-sm font-bold text-emerald-300 group-hover:text-emerald-200 transition-colors">
+                  Analisi Storica Avanzata
+                </div>
+                <div className="text-[10px] text-slate-500 mt-0.5">
+                  Apre il monitoraggio dinamico filtrato su questo sensore
+                </div>
+              </div>
+              <svg className="w-4 h-4 text-emerald-500/60 group-hover:text-emerald-400 transition-colors shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+
+            {/* Link secondario Grafana completo */}
+            <a
+              href={`${GRAFANA_BASE}/d/${DASHBOARD_UID}/${DASHBOARD_SLUG}`}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-[11px] text-slate-500 hover:text-slate-300 border border-slate-800 hover:border-slate-600 transition-all"
+            >
+              <span>📈</span>
+              <span>Apri Grafana Dashboard completa</span>
+              <span className="ml-auto opacity-60">↗</span>
+            </a>
+          </div>
 
         </div>
       </div>

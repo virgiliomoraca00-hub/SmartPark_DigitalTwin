@@ -11,22 +11,22 @@
  * Il campo `radius` è opzionale e non usato nel matching (usato solo per visualizzazione futura).
  */
 
-export const ZONES = [
-  // ── MODALITÀ ATTIVA: Geo-Grid automatico ─────────────────────────────────
-  // ZONES è vuoto → assignZone usa la griglia geografica adattiva (NW/N/NE/SW/S/SE)
-  // calcolata sul bounding box reale dei sensori presenti nel sistema.
-  //
-  // Per attivare le zone semantiche, decommenta le righe qui sotto
-  // inserendo le coordinate GPS reali delle aree del parco:
-  //
-  // { id: 'entrance',   label: 'Ingresso',      lat: 39.3208, lng: 16.4695, radius: 0.0008 },
-  // { id: 'trail_n',    label: 'Sentiero Nord',  lat: 39.3218, lng: 16.4700, radius: 0.0010 },
-  // { id: 'giganti',    label: 'Area Giganti',   lat: 39.3224, lng: 16.4710, radius: 0.0012 },
-  // { id: 'trail_e',    label: 'Sentiero Est',   lat: 39.3220, lng: 16.4722, radius: 0.0010 },
-  // { id: 'trail_s',    label: 'Sentiero Sud',   lat: 39.3210, lng: 16.4715, radius: 0.0008 },
-  // { id: 'rest_area',  label: 'Area Sosta',     lat: 39.3212, lng: 16.4702, radius: 0.0007 },
-  // ─────────────────────────────────────────────────────────────────────────
-]
+export const ZONES = []
+  // ZONES vuoto → si usa il Geo-Grid automatico 3×2 (NW/N/NE/SW/S/SE)
+  // calcolato sul PARK_BOUNDS fisso (non sui sensori) per non sforare l'area.
+
+/**
+ * Bounding box fisso della Riserva Statale "I Giganti della Sila".
+ * Derivato dal perimetro già definito in ParkMap.jsx.
+ * Usato sia per il disegno della griglia sulla mappa, sia per
+ * l'assegnazione di zona in thingSchema.js.
+ */
+export const PARK_BOUNDS = {
+  minLat: 39.3234,
+  maxLat: 39.3264,
+  minLng: 16.4662,
+  maxLng: 16.4693,
+}
 
 // ── Labels Geo-Grid automatico (3 colonne × 2 righe = 6 celle) ─────────────
 export const GRID_LABELS = [

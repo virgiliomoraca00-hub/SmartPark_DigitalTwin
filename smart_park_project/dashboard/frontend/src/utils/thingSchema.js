@@ -24,12 +24,15 @@
  * per la UI, ma mantenuto nelle query InfluxDB.
  */
 
-import { assignZone, computeBoundingBox } from './zoneConfig'
+import { assignZone, PARK_BOUNDS } from './zoneConfig'
 
-// Campi da escludere dalle metriche (metadati, non dati graficabili)
+// Campi da escludere dalle metriche (metadati, non dati graficabili e doppioni legacy)
 const EXCLUDED_KEYS = new Set([
   'lat', 'lng', 'timestamp', 'device_id', 'type',
   'name', 'zone', 'activity', 'location',
+  // Rimuoviamo i doppioni causati dai vecchi log prima della standardizzazione
+  'temperatura', 'temperature', 'umidita', 'umidità', 'humidity',
+  'co2', 'rumore', 'pressione', 'luminosita', 'luminosità'
 ])
 
 // Icone per tipo di sensore
@@ -86,7 +89,8 @@ export function deriveSchema(sseThings) {
   const things = Object.values(sseThings)
   if (things.length === 0) return {}
 
-  const bbox = computeBoundingBox(things)
+  // Usa sempre il bbox fisso del parco per coerenza con la griglia visiva
+  const bbox = PARK_BOUNDS
   const schema = {}
 
   for (const thing of things) {

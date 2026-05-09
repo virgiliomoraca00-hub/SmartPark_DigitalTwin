@@ -1,10 +1,10 @@
-import { getTypeConfig, sensorTypesMap } from '../config/sensorConfig'
+import { getTypeConfig, getTelemetryMeta, sensorTypesMap } from '../config/sensorConfig'
 
 /**
  * SensorList — Left sidebar showing sensors grouped by type.
  * Groups are derived dynamically from sseThings feature keys.
  */
-export default function SensorList({ initialPins, sseThings, selectedSensor, onSelectSensor }) {
+export default function SensorList({ initialPins, sseThings, selectedSensor, onSelectSensor, typeFilter, availableTypes = [], onTypeFilter, availableMetrics = [], metricFilter, onMetricFilter }) {
   // Build groups: { type -> [pin, ...] }
   const groups = {}
 
@@ -35,6 +35,76 @@ export default function SensorList({ initialPins, sseThings, selectedSensor, onS
         <p className="text-xs text-slate-300 font-semibold mt-0.5">{initialPins.length} dispositivi</p>
       </div>
 
+      {/* Filtro per tipo — pill-bar */}
+      {availableTypes.length > 1 && (
+        <div className="px-2 py-2 border-b border-slate-800 flex flex-col gap-1">
+          <p className="text-[9px] font-bold text-slate-600 uppercase tracking-widest px-1 mb-0.5">Filtra tipo</p>
+          <button
+            onClick={() => onTypeFilter && onTypeFilter(null)}
+            className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all border ${
+              typeFilter === null
+                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                : 'text-slate-400 hover:text-slate-200 border-transparent hover:border-slate-700'
+            }`}
+          >
+            📡 Tutti
+          </button>
+          {availableTypes.map(type => {
+            const cfg = getTypeConfig(type)
+            const isActive = typeFilter === type
+            return (
+              <button
+                key={type}
+                onClick={() => onTypeFilter && onTypeFilter(type)}
+                className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all border ${
+                  isActive
+                    ? 'border-[var(--tc)] text-white'
+                    : 'text-slate-400 hover:text-slate-200 border-transparent hover:border-slate-700'
+                }`}
+                style={isActive ? {
+                  '--tc': cfg.color,
+                  backgroundColor: cfg.color + '22',
+                  borderColor: cfg.color + '66',
+                  color: cfg.color,
+                } : {}}
+              >
+                {cfg.mapMarkerIcon} {cfg.label}
+              </button>
+            )
+          })}
+
+          {/* Sottomenu Metriche (visibile solo se c'è un tipo selezionato) */}
+          {typeFilter && availableMetrics.length > 0 && (
+            <div className="mt-2 pt-2 border-t border-slate-800">
+               <p className="text-[9px] font-bold text-slate-600 uppercase tracking-widest px-1 mb-1">Mappa Metrica (Live)</p>
+               <div className="flex flex-col gap-0.5 max-h-40 overflow-y-auto custom-scrollbar pr-1">
+                 {availableMetrics.map(metric => {
+                    const meta = getTelemetryMeta(metric)
+                    const isActive = metricFilter === metric
+                    return (
+                      <button
+                        key={metric}
+                        onClick={() => onMetricFilter && onMetricFilter(metric)}
+                        className={`w-full flex items-center justify-between px-2 py-1 rounded-md text-[10px] transition-all border ${
+                          isActive
+                            ? 'bg-sky-500/20 text-sky-300 border-sky-500/30 font-bold'
+                            : 'text-slate-400 hover:bg-slate-800 border-transparent hover:text-slate-200'
+                        }`}
+                        title={meta.label}
+                      >
+                         <span className="flex items-center gap-1.5 truncate">
+                           <span>{meta.icon}</span>
+                           <span className="truncate">{meta.label}</span>
+                         </span>
+                         {isActive && <span className="text-[8px] text-sky-400 bg-sky-500/10 px-1 py-0.5 rounded">LIVE</span>}
+                      </button>
+                    )
+                 })}
+               </div>
+            </div>
+          )}
+        </div>
+      )}
       {/* Group list */}
       <div className="flex-1 overflow-y-auto py-2">
         {groupEntries.map(([type, pins]) => {
