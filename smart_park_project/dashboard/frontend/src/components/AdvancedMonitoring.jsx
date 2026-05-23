@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { deriveSchema, TYPE_ICONS, TYPE_LABELS, schemaStats } from '../utils/thingSchema'
 
 // ── Configurazione Grafana ─────────────────────────────────────────────────
@@ -97,6 +97,11 @@ function ThingTreeFilter({ schema, selection, onToggleMetric, onToggleThing, onT
         const typeChecked = selectedInType === allMetricsInType.length && allMetricsInType.length > 0
         const typeIndet  = selectedInType > 0 && !typeChecked
 
+        // Numero di sensori unici (Things) per questo tipo
+        const sensorCountInType = Object.values(zones).reduce(
+          (acc, items) => acc + Object.keys(items).length, 0
+        )
+
         return (
           <div key={type} className="rounded-lg overflow-hidden border border-slate-800/60">
             {/* L1: Tipo ─────────────────────────────────────────────────── */}
@@ -110,7 +115,7 @@ function ThingTreeFilter({ schema, selection, onToggleMetric, onToggleThing, onT
                 indeterminate={typeIndet}
                 onChange={e => { e.stopPropagation(); onToggleType(type, schema[type]) }}
                 label={TYPE_LABELS[type] ?? type}
-                count={allMetricsInType.length}
+                count={sensorCountInType}
               />
               <span className={`ml-auto text-slate-500 transition-transform ${openTypes[type] ? 'rotate-90' : ''}`}>▶</span>
             </div>
@@ -238,7 +243,7 @@ function GrafanaPanel({ title, subtitle, url, height = 320 }) {
 }
 
 // ── Componente principale ─────────────────────────────────────────────────
-export default function AdvancedMonitoring({ onClose, sseThings = {} }) {
+export default function AdvancedMonitoring({ onClose, sseThings = {}, preselectedThingId = null }) {
   const [timeRange, setTimeRange]   = useState('now-1h')
   const [selection, setSelection]   = useState(new Set())   // Set<"thingId::metric">
   const [panelMode, setPanelMode]   = useState('grouped')   // 'grouped' | 'single'
@@ -247,6 +252,25 @@ export default function AdvancedMonitoring({ onClose, sseThings = {} }) {
   // Deriva schema una sola volta per render cycle (aggiornato se SSE porta nuovi Things)
   const schema = useMemo(() => deriveSchema(sseThings), [sseThings])
   const stats  = useMemo(() => schemaStats(schema), [schema])
+
+  // ── Auto-selezione al mount con preselectedThingId ───────────────────────
+  // Si attiva una sola volta quando schema è pronto e thingId è valorizzato
+  const [hasAutoSelected, setHasAutoSelected] = useState(false)
+  useEffect(() => {
+    if (!preselectedThingId || hasAutoSelected) return
+    // Cerca il thing nello schema e seleziona tutte le sue metriche
+    for (const zones of Object.values(schema)) {
+      for (const items of Object.values(zones)) {
+        if (items[preselectedThingId]) {
+          const info = items[preselectedThingId]
+          const keys = info.metrics.map(m => `${preselectedThingId}::${m}`)
+          setSelection(new Set(keys))
+          setHasAutoSelected(true)
+          return
+        }
+      }
+    }
+  }, [schema, preselectedThingId, hasAutoSelected])
 
   // ── Toggle handlers ─────────────────────────────────────────────────────
   const toggleMetric = useCallback((key) => {
