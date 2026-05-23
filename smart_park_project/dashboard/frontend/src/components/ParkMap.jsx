@@ -64,9 +64,12 @@ function ZoneOverlay() {
       const cellLngMin = minLng + (col / 3) * lngRange
       const cellLngMax = minLng + ((col + 1) / 3) * lngRange
       const idx = row * 3 + col
+      const label = GRID_LABELS[row][col]
+      if (label === 'Zona NE') continue
+
       cells.push({
         bounds: [[cellLatMin, cellLngMin], [cellLatMax, cellLngMax]],
-        label:  GRID_LABELS[row][col],
+        label:  label,
         color:  ZONE_COLORS[idx % ZONE_COLORS.length],
         center: [(cellLatMin + cellLatMax) / 2, (cellLngMin + cellLngMax) / 2],
       })
@@ -230,16 +233,22 @@ export default function ParkMap({ initialPins = [], sseThings = {}, selectedSens
                     <span className="text-[10px] text-gray-400 mb-1 block">ID: {sensor.thingId}</span>
                   </div>
                 </Tooltip>
+              </CircleMarker>
 
-                {/* Permanent Tooltip per il valore della metrica (se attiva) */}
-                {metricValue !== null && (
+              {/* Permanent Tooltip per il valore della metrica (se attiva) posizionato su un marker invisibile per evitare conflitti */}
+              {metricValue !== null && (
+                <CircleMarker
+                  center={[lat, lng]}
+                  radius={0}
+                  pathOptions={{ opacity: 0, fillOpacity: 0, interactive: false }}
+                >
                   <Tooltip permanent direction="bottom" offset={[0, r + 2]} opacity={0.9} className="metric-live-tooltip">
                     <div className="font-sans text-[10px] font-bold text-sky-400 bg-slate-900/80 px-1 py-0.5 rounded border border-sky-500/30 whitespace-nowrap shadow-lg">
                       {metricMeta?.icon} {typeof metricValue === 'number' ? metricValue.toFixed(1) : metricValue} <span className="text-[9px] text-sky-500/70">{metricMeta?.unit}</span>
                     </div>
                   </Tooltip>
-                )}
-              </CircleMarker>
+                </CircleMarker>
+              )}
             </Fragment>
           )
         })}
