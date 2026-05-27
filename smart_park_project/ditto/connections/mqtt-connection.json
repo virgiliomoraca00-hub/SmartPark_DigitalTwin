@@ -34,7 +34,10 @@
       "authorizationContext": [
         "nginx:ditto"
       ],
-      "qos": 1
+      "qos": 1,
+      "payloadMapping": [
+        "dynamic-json-mapper"
+      ]
     }
   ],
   "mappingDefinitions": {
@@ -42,7 +45,7 @@
       "mappingEngine": "JavaScript",
       "options": {
         "incomingScript": "function mapToDittoProtocolMsg(headers, textPayload, bytePayload, contentType) { if (!textPayload) return null; var json; try { json = JSON.parse(textPayload); } catch(e) { return null; } var topic = headers['mqtt.topic'] || headers['ditto-message-subject'] || ''; var parts = topic.split('/'); var deviceId = parts[parts.length - 1] || json.device_id || ''; if (!deviceId) return null; var attrs = (json.attributes && typeof json.attributes === 'object') ? json.attributes : {}; if (json.type) attrs.type = json.type; if (json.device_id) attrs.device_id = json.device_id; if (json.timestamp) attrs.lastUpdate = json.timestamp; var features = {}; var src = (json.data && typeof json.data === 'object') ? json.data : {}; if (Object.keys(src).length > 0) { features['sensors'] = { properties: src }; } \n\n // ---> LA CORREZIONE È QUI <--- \n headers['content-type'] = 'application/merge-patch+json'; \n\n return Ditto.buildDittoProtocolMsg('smartpark', deviceId, 'things', 'twin', 'commands', 'merge', '/', headers, { 'policyId': 'smartpark:sensors-policy', 'attributes': attrs, 'features': features }); }",
-        "outgoingScript": "function mapFromDittoProtocolMsg(namespace, name, group, channel, criterion, action, path, dittoHeaders, value, status, extra) { var payload = { success: status < 400, status: status || 200, thingId: namespace + ':' + name, data: value || {} }; if (status >= 400) { payload.error = value; } return Ditto.buildExternalMsg({ 'Content-Type': 'application/json' }, JSON.stringify(payload), null, 'application/json'); }"
+        "outgoingScript": "function mapFromDittoProtocolMsg(namespace, name, group, channel, criterion, action, path, dittoHeaders, value, status, extra) { if (!path || !path.includes('desiredProperties')) { return null; } var statusCode = status || 200; var payload = { success: statusCode < 400, status: statusCode, thingId: namespace + ':' + name, path: path, data: value }; if (statusCode >= 400) { payload.error = value; } return Ditto.buildExternalMsg({ 'Content-Type': 'application/json' }, JSON.stringify(payload), null, 'application/json'); }"
       }
     }
   }

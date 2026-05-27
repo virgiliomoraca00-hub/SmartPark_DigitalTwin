@@ -87,7 +87,7 @@
             "type": "influxdb",
             "uid": "P951FEA4DE68E13C5"
           },
-          "query": "from(bucket: \"sensor-data\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"data_temperature_c\" and r.type == \"environmental\")\n  |> mean()",
+          "query": "from(bucket: \"sensor-data\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"features_sensors_properties_temperature\" and r.type == \"environmental\")\n  |> mean()",
           "refId": "A",
           "legendFormat": "Temperatura °C"
         }
@@ -159,7 +159,7 @@
             "type": "influxdb",
             "uid": "P951FEA4DE68E13C5"
           },
-          "query": "from(bucket: \"sensor-data\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"data_humidity_pct\" and r.type == \"environmental\")\n  |> mean()",
+          "query": "from(bucket: \"sensor-data\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"features_sensors_properties_humidity\" and r.type == \"environmental\")\n  |> mean()",
           "refId": "A",
           "legendFormat": "Umidità %"
         }
@@ -229,7 +229,7 @@
             "type": "influxdb",
             "uid": "P951FEA4DE68E13C5"
           },
-          "query": "from(bucket: \"sensor-data\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"data_co2_ppm\" and r.type == \"environmental\")\n  |> mean()",
+          "query": "from(bucket: \"sensor-data\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"features_sensors_properties_co2_ppm\" and r.type == \"environmental\")\n  |> mean()",
           "refId": "A",
           "legendFormat": "CO₂ ppm"
         }
@@ -295,7 +295,7 @@
             "type": "influxdb",
             "uid": "P951FEA4DE68E13C5"
           },
-          "query": "from(bucket: \"sensor-data\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"data_voc_ppb\" and r.type == \"environmental\")\n  |> mean()",
+          "query": "from(bucket: \"sensor-data\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"features_sensors_properties_voc_ppb\" and r.type == \"environmental\")\n  |> mean()",
           "refId": "A",
           "legendFormat": "VOC ppb"
         }
@@ -352,7 +352,7 @@
             "type": "influxdb",
             "uid": "P951FEA4DE68E13C5"
           },
-          "query": "from(bucket: \"sensor-data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"data_temperature_c\" and r.type == \"environmental\" and (\"${device_id}\" == \"\" or r.device_id == \"${device_id}\"))\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> keep(columns: [\"_time\", \"_value\", \"device_id\"])\n  |> yield(name: \"temperature\")",
+          "query": "from(bucket: \"sensor-data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"features_sensors_properties_temperature\" and r.type == \"environmental\" and (\"${device_id}\" == \"\" or r.device_id == \"${device_id}\"))\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> keep(columns: [\"_time\", \"_value\", \"device_id\"])\n  |> yield(name: \"temperature\")",
           "refId": "A",
           "legendFormat": "{{device_id}}"
         }
@@ -411,7 +411,7 @@
             "type": "influxdb",
             "uid": "P951FEA4DE68E13C5"
           },
-          "query": "from(bucket: \"sensor-data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"data_humidity_pct\" and r.type == \"environmental\" and (\"${device_id}\" == \"\" or r.device_id == \"${device_id}\"))\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> keep(columns: [\"_time\", \"_value\", \"device_id\"])\n  |> yield(name: \"humidity\")",
+          "query": "from(bucket: \"sensor-data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"features_sensors_properties_humidity\" and r.type == \"environmental\" and (\"${device_id}\" == \"\" or r.device_id == \"${device_id}\"))\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> keep(columns: [\"_time\", \"_value\", \"device_id\"])\n  |> yield(name: \"humidity\")",
           "refId": "A",
           "legendFormat": "Umidità – {{device_id}}"
         },
@@ -420,7 +420,7 @@
             "type": "influxdb",
             "uid": "P951FEA4DE68E13C5"
           },
-          "query": "from(bucket: \"sensor-data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"data_co2_ppm\" and r.type == \"environmental\" and (\"${device_id}\" == \"\" or r.device_id == \"${device_id}\"))\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> map(fn: (r) => ({r with _value: r._value / 10.0}))\n  |> keep(columns: [\"_time\", \"_value\", \"device_id\"])\n  |> yield(name: \"co2_scaled\")",
+          "query": "from(bucket: \"sensor-data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"features_sensors_properties_co2_ppm\" and r.type == \"environmental\" and (\"${device_id}\" == \"\" or r.device_id == \"${device_id}\"))\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> map(fn: (r) => ({r with _value: r._value / 10.0}))\n  |> keep(columns: [\"_time\", \"_value\", \"device_id\"])\n  |> yield(name: \"co2_scaled\")",
           "refId": "B",
           "legendFormat": "CO₂ – {{device_id}}"
         }
@@ -499,7 +499,7 @@
             "type": "influxdb",
             "uid": "P951FEA4DE68E13C5"
           },
-          "query": "from(bucket: \"sensor-data\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"data_person_count\" and r.type == \"vision\")\n  |> last()\n  |> sum()",
+          "query": "from(bucket: \"sensor-data\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"features_sensors_properties_person_count\" and r.type == \"vision\")\n  |> last()\n  |> sum()",
           "refId": "A",
           "legendFormat": "Totale Persone"
         }
@@ -562,7 +562,7 @@
             "type": "influxdb",
             "uid": "P951FEA4DE68E13C5"
           },
-          "query": "from(bucket: \"sensor-data\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"data_anomaly_score\" and r.type == \"vision\" and r._value == 1.0)\n  |> count()",
+          "query": "from(bucket: \"sensor-data\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"features_sensors_properties_anomaly_score\" and r.type == \"vision\" and r._value == 1.0)\n  |> count()",
           "refId": "A",
           "legendFormat": "Anomalie rilevate"
         }
@@ -631,7 +631,7 @@
             "type": "influxdb",
             "uid": "P951FEA4DE68E13C5"
           },
-          "query": "from(bucket: \"sensor-data\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"data_anomaly_score\" and r.type == \"vision\")\n  |> mean()",
+          "query": "from(bucket: \"sensor-data\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"features_sensors_properties_anomaly_score\" and r.type == \"vision\")\n  |> mean()",
           "refId": "A",
           "legendFormat": "Anomaly Score"
         }
@@ -688,7 +688,7 @@
             "type": "influxdb",
             "uid": "P951FEA4DE68E13C5"
           },
-          "query": "from(bucket: \"sensor-data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"data_person_count\" and r.type == \"vision\" and (\"${device_id}\" == \"\" or r.device_id == \"${device_id}\"))\n  |> aggregateWindow(every: v.windowPeriod, fn: max, createEmpty: false)\n  |> keep(columns: [\"_time\", \"_value\", \"device_id\"])\n  |> yield(name: \"person_count\")",
+          "query": "from(bucket: \"sensor-data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"features_sensors_properties_person_count\" and r.type == \"vision\" and (\"${device_id}\" == \"\" or r.device_id == \"${device_id}\"))\n  |> aggregateWindow(every: v.windowPeriod, fn: max, createEmpty: false)\n  |> keep(columns: [\"_time\", \"_value\", \"device_id\"])\n  |> yield(name: \"person_count\")",
           "refId": "A",
           "legendFormat": "{{device_id}}"
         }
@@ -759,7 +759,7 @@
             "type": "influxdb",
             "uid": "P951FEA4DE68E13C5"
           },
-          "query": "from(bucket: \"sensor-data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"data_anomaly_score\" and r.type == \"vision\" and r._value == 1.0)",
+          "query": "from(bucket: \"sensor-data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"features_sensors_properties_anomaly_score\" and r.type == \"vision\" and r._value == 1.0)",
           "refId": "A",
           "legendFormat": "{{device_id}}"
         }
@@ -859,7 +859,7 @@
             "type": "influxdb",
             "uid": "P951FEA4DE68E13C5"
           },
-          "query": "from(bucket: \"sensor-data\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"data_noise_db\" and r.type == \"sentimentAnalysis\")\n  |> mean()",
+          "query": "from(bucket: \"sensor-data\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"features_sensors_properties_noise_db\" and r.type == \"sentimentAnalysis\")\n  |> mean()",
           "refId": "A",
           "legendFormat": "Rumore dB(A)"
         }
@@ -926,7 +926,7 @@
             "type": "influxdb",
             "uid": "P951FEA4DE68E13C5"
           },
-          "query": "from(bucket: \"sensor-data\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"data_noise_db\" and r.type == \"sentimentAnalysis\")\n  |> mean()",
+          "query": "from(bucket: \"sensor-data\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"features_sensors_properties_noise_db\" and r.type == \"sentimentAnalysis\")\n  |> mean()",
           "refId": "A",
           "legendFormat": "Rumore dB(Z)"
         }
@@ -993,7 +993,7 @@
             "type": "influxdb",
             "uid": "P951FEA4DE68E13C5"
           },
-          "query": "from(bucket: \"sensor-data\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"data_sentiment_score\" and r.type == \"sentimentAnalysis\")\n  |> mean()",
+          "query": "from(bucket: \"sensor-data\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"features_sensors_properties_sentiment_score\" and r.type == \"sentimentAnalysis\")\n  |> mean()",
           "refId": "A",
           "legendFormat": "Sentiment Score"
         }
@@ -1051,7 +1051,7 @@
             "type": "influxdb",
             "uid": "P951FEA4DE68E13C5"
           },
-          "query": "from(bucket: \"sensor-data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"data_noise_db\" and r.type == \"sentimentAnalysis\" and (\"${device_id}\" == \"\" or r.device_id == \"${device_id}\"))\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> keep(columns: [\"_time\", \"_value\", \"device_id\"])\n  |> yield(name: \"db_a\")",
+          "query": "from(bucket: \"sensor-data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"features_sensors_properties_noise_db\" and r.type == \"sentimentAnalysis\" and (\"${device_id}\" == \"\" or r.device_id == \"${device_id}\"))\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> keep(columns: [\"_time\", \"_value\", \"device_id\"])\n  |> yield(name: \"db_a\")",
           "refId": "A",
           "legendFormat": "{{device_id}}"
         }
@@ -1134,7 +1134,7 @@
             "type": "influxdb",
             "uid": "P951FEA4DE68E13C5"
           },
-          "query": "from(bucket: \"sensor-data\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"data_heart_rate_bpm\" and r.type == \"activityRecognition\")\n  |> mean()",
+          "query": "from(bucket: \"sensor-data\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"features_sensors_properties_heart_rate_bpm\" and r.type == \"activityRecognition\")\n  |> mean()",
           "refId": "A",
           "legendFormat": "Heart Rate BPM"
         }
@@ -1197,7 +1197,7 @@
             "type": "influxdb",
             "uid": "P951FEA4DE68E13C5"
           },
-          "query": "from(bucket: \"sensor-data\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"data_steps_total\" and r.type == \"activityRecognition\")\n  |> last()\n  |> sum()",
+          "query": "from(bucket: \"sensor-data\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"features_sensors_properties_steps_total\" and r.type == \"activityRecognition\")\n  |> last()\n  |> sum()",
           "refId": "A",
           "legendFormat": "Passi totali"
         }
@@ -1264,7 +1264,7 @@
             "type": "influxdb",
             "uid": "P951FEA4DE68E13C5"
           },
-          "query": "from(bucket: \"sensor-data\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"data_gsr_kohm\" and r.type == \"activityRecognition\")\n  |> mean()",
+          "query": "from(bucket: \"sensor-data\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"features_sensors_properties_gsr_kohm\" and r.type == \"activityRecognition\")\n  |> mean()",
           "refId": "A",
           "legendFormat": "Temp. Pelle °C"
         }
@@ -1322,7 +1322,7 @@
             "type": "influxdb",
             "uid": "P951FEA4DE68E13C5"
           },
-          "query": "from(bucket: \"sensor-data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"data_heart_rate_bpm\" and r.type == \"activityRecognition\" and (\"${device_id}\" == \"\" or r.device_id == \"${device_id}\"))\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> keep(columns: [\"_time\", \"_value\", \"device_id\"])\n  |> yield(name: \"heart_rate\")",
+          "query": "from(bucket: \"sensor-data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"sensor_reading\" and r._field == \"features_sensors_properties_heart_rate_bpm\" and r.type == \"activityRecognition\" and (\"${device_id}\" == \"\" or r.device_id == \"${device_id}\"))\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> keep(columns: [\"_time\", \"_value\", \"device_id\"])\n  |> yield(name: \"heart_rate\")",
           "refId": "A",
           "legendFormat": "{{device_id}}"
         }

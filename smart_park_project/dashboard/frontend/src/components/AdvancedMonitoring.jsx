@@ -39,7 +39,7 @@ function buildGrafanaUrl({ panelId, from, deviceIds = [], fields = [], uid = DAS
 
   // Multi-value: var-sensor_id=X&var-sensor_id=Y
   for (const id of deviceIds) params.append('var-sensor_id', id)
-  for (const f of fields)     params.append('var-field', `data_${f}`)
+  for (const f of fields)     params.append('var-field', `features_sensors_properties_${f}`)
 
   return `${GRAFANA_BASE}/d-solo/${uid}/${slug}?${params.toString()}`
 }
