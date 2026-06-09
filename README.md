@@ -1,645 +1,517 @@
 # Smart Park — Digital Twin IoT Stack
 
-Sistema IoT per il monitoraggio in tempo reale della Riserva Statale "I Giganti della Sila" (Calabria), costruito su **Eclipse Ditto** come motore di Digital Twin, **Mosquitto MQTT**, **Node-RED** come simulatore sensori e una **dashboard React** in tempo reale.
+Sistema IoT per il monitoraggio di un parco naturale intelligente basato su **Eclipse Ditto** come motore di Digital Twin, **Mosquitto MQTT** come broker, **Node-RED** come simulatore sensori e una **dashboard React** in tempo reale con controllo bidirezionale dei dispositivi.
 
 ---
 
-## Indice
-
-1. [Panoramica del Progetto](#panoramica-del-progetto)
-2. [Architettura dei Servizi](#architettura-dei-servizi)
-3. [Flusso dei Dati — End to End](#flusso-dei-dati--end-to-end)
-4. [Simulazione Sensori (Node-RED)](#simulazione-sensori-node-red)
-5. [Mapper JavaScript Ditto](#mapper-javascript-ditto)
-6. [Persistenza Storica (Telegraf → InfluxDB → Grafana)](#persistenza-storica-telegraf--influxdb--grafana)
-7. [Dashboard React — Architettura Frontend](#dashboard-react--architettura-frontend)
-8. [Struttura del Progetto](#struttura-del-progetto)
-9. [Prerequisiti e Avvio](#prerequisiti-e-avvio)
-10. [Configurazione Eclipse Ditto](#configurazione-eclipse-ditto)
-11. [Interfacce Web](#interfacce-web)
-12. [Troubleshooting](#troubleshooting)
-
----
-
-## Panoramica del Progetto
-
-Smart Park è un sistema di monitoraggio ambientale e comportamentale per aree naturali protette. Ogni dispositivo fisico (sensore ambientale, telecamera AI, microfono, wearable GPS) ha un corrispondente **Digital Twin** in Eclipse Ditto che ne mantiene lo stato aggiornato in tempo reale.
-
-La dashboard React si connette direttamente a Ditto via **Server-Sent Events (SSE)** e mostra i dati senza alcun backend intermedio. Per le serie storiche, Grafana legge da InfluxDB che riceve i dati via Telegraf.
-
-### Tipi di sensori simulati
-
-| Tipo | `attributes.type` | Sensori simulati | Dati prodotti |
-|------|-------------------|------------------|---------------|
-| Ambientale | `environmental` | `env-100`…`env-109` (10 sensori, ogni 2s) | Temperatura, umidità, pressione, CO₂ |
-| Computer Vision | `vision` / `camera` | `cam-200`…`cam-206` (7 camere, ogni 6s) | Persone rilevate, densità folla, anomalia, emozione |
-| Analisi Audio | `audio` / `sentimentAnalysis` | `mic-300`…`mic-319` (20 microfoni, ogni 8s) | Sentiment score, livello rumore, trascrizione |
-| Wearable GPS | `activityRecognition` | `shimmer-visitor-02`, `04`, `05` (ogni 1-2s) | Heart rate, GSR, passi, posizione GPS live |
-
----
-
-## Architettura dei Servizi
+## Architettura
 
 ```
-┌──────────────────────────────────────────────────────────────────────┐
-│                         SORGENTI DATI                                │
-│                                                                      │
-│  Node-RED (flows JSON) — simula tutti i sensori                      │
-│  └─ pubblica MQTT su:  smartpark/telemetry/<device_id>               │
-└───────────────────────────────┬──────────────────────────────────────┘
-                                │ MQTT (porta 1883)
-                                ▼
-┌──────────────────────────────────────────────────────────────────────┐
-│                    MOSQUITTO — MQTT Broker                           │
-│  Porta 1883 (MQTT TCP) | Porta 9001 (WebSocket)                     │
-│  Broker centrale: tutti i publisher e subscriber passano da qui      │
-└────────────────┬────────────────────────────────┬────────────────────┘
-                 │                                │
-                 │ Subscribe: smartpark/telemetry/# │ Subscribe: smartpark/telemetry/#
-                 ▼                                ▼
-┌─────────────────────────────┐    ┌─────────────────────────────────┐
-│  DITTO CONNECTIVITY         │    │  TELEGRAF                       │
-│  - Riceve messaggi MQTT     │    │  - Riceve messaggi MQTT         │
-│  - Mappa payload JSON →     │    │  - Fa parsing JSON (tag:        │
-│    Ditto Protocol (merge)   │    │    device_id, type)             │
-│  - Crea/aggiorna Digital    │    │  - Scrive su InfluxDB ogni 5s   │
-│    Twin automaticamente     │    └──────────────┬──────────────────┘
-└──────────────┬──────────────┘                   │
-               │                                  ▼
-               ▼                    ┌─────────────────────────────────┐
-┌──────────────────────────────┐    │  INFLUXDB v2                    │
-│  ECLIPSE DITTO               │    │  Bucket: sensor-data            │
-│  (5 microservizi + nginx)    │    │  Measurement: sensor_reading    │
-│                              │    │  Tag: device_id, type           │
-│  Policies → accessi          │    │  Fields: data.temperature_c,    │
-│  Things   → stato twin       │    │          data.humidity_pct …    │
-│  Search   → query RQL        │    └──────────────┬──────────────────┘
-│  Connectivity → MQTT bridge  │                   │
-│  Gateway  → HTTP/SSE API     │                   ▼
-│  nginx    → auth porta 8080  │    ┌─────────────────────────────────┐
-└──────────────┬───────────────┘    │  GRAFANA                        │
-               │                    │  Porta 3000                     │
-               │ SSE + REST API     │  Dashboard pre-configurate      │
-               │ (porta 8080)       │  Variabili: var-device_id       │
-               ▼                    │             var-field           │
-┌──────────────────────────────┐    └─────────────────────────────────┘
-│  DASHBOARD REACT             │                   ▲
-│  Porta 5173 (dev) / 8090     │                   │ iframe embed
-│                              │───────────────────┘
-│  useDittoSSE() → SSE stream  │  (Grafana embedded nella dashboard)
-│  ParkMap (Leaflet)           │
-│  SensorPanel                 │
-│  AdvancedMonitoring          │
-└──────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────┐
+│                        SIMULAZIONE (Node-RED :1880)                │
+│  Tab: Env Monitoring | Computer Vision | Sentiment | Activity Rec. │
+│  Tab: HTTP→MQTT Bridge | Bidirectional Control                     │
+└──────────────────────────┬─────────────────────────────────────────┘
+                           │ MQTT publish
+                           ▼ smartpark/telemetry/<deviceId>
+                    ┌──────────────┐
+                    │  Mosquitto   │ :1883
+                    │  MQTT Broker │
+                    └──────┬───────┘
+                           │ subscribe
+            ┌──────────────┼─────────────────────────────┐
+            ▼              ▼                              ▼
+   ┌──────────────┐ ┌─────────────────────────────┐ ┌──────────────┐
+   │  Telegraf    │ │    Ditto Connectivity        │ │  MQTT topics │
+   │ MQTT→InfluxDB│ │  JavaScript Mapper           │ │  (debug)     │
+   └──────┬───────┘ │  → Ditto Protocol Msg        │ └──────────────┘
+          │         └─────────────┬───────────────┘
+          ▼                       │ merge/create Things
+   ┌──────────────┐    ┌──────────▼──────────────────┐
+   │   InfluxDB   │    │   Eclipse Ditto              │
+   │  :8086       │    │   (policies + things +       │
+   └──────┬───────┘    │    search + connectivity +   │
+          │            │    gateway)                  │
+          ▼            └──────────┬──────────────────┘
+   ┌──────────────┐               │ REST API + SSE
+   │   Grafana    │    ┌──────────▼──────────────────┐
+   │   :3000      │    │   Nginx reverse proxy        │
+   └──────────────┘    │   Basic Auth (ditto/devops)  │
+                       │   :8080                      │
+                       └──────────┬──────────────────┘
+                                  │
+                       ┌──────────▼──────────────────┐
+                       │   Dashboard React (Vite)     │
+                       │   :5173                      │
+                       │   useDittoSSE (snapshot+SSE) │
+                       │   useDittoPatch (bidir)      │
+                       └─────────────────────────────┘
 ```
 
-### Tabella servizi Docker
-
-| Servizio | Container | Porta | Credenziali |
-|----------|-----------|-------|-------------|
-| Mosquitto (MQTT) | `mosquitto` | 1883, 9001 | — |
-| RabbitMQ | `rabbitmq` | 5672, 15672 | `hono` / `hono-secret` |
-| MongoDB | `mongodb` | 27017 | `ditto` / `ditto-secret` |
-| Ditto Gateway (nginx) | `ditto-nginx` | 8080 | `ditto` / `ditto` |
-| Ditto UI | `ditto-ui` | 8081 | `ditto` / `ditto` |
-| InfluxDB | `influxdb` | 8086 | `admin` / `admin-secret` |
-| Telegraf | `telegraf` | — | — |
-| Grafana | `grafana` | 3000 | `admin` / `admin` |
-| MQTT Explorer | `mqtt-explorer` | 4000 | — |
-| Node-RED | `nodered` | 1880 | — |
-
----
-
-## Flusso dei Dati — End to End
-
-Il flusso completo da sensore a dashboard si articola in questi passi:
-
-### Passo 1 — Pubblicazione MQTT (Node-RED)
-
-Node-RED genera un payload JSON e lo pubblica su:
-```
-smartpark/telemetry/<device_id>
-```
-
-Struttura payload (esempio ambientale):
-```json
-{
-  "device_id": "env-101",
-  "type": "environmental",
-  "timestamp": "2026-05-06T10:00:00.000Z",
-  "data": {
-    "temperature_c": 22.4,
-    "humidity_pct": 55.1,
-    "pressure_hpa": 1013.2,
-    "co2_ppm": 420
-  },
-  "attributes": {
-    "lat": 39.324150,
-    "lng": 16.467320
-  }
-}
-```
-
-### Passo 2 — Bridge MQTT → Ditto (Connectivity)
-
-Ditto Connectivity è iscritto al topic `smartpark/telemetry/#`. Per ogni messaggio ricevuto, il **mapper JavaScript** (`mqtt-connection.json`) esegue queste operazioni:
-
-1. Estrae il `device_id` dall'ultimo segmento del topic MQTT
-2. Separa `attributes` (metadati statici: tipo, lat, lng) da `data` (telemetria)
-3. Costruisce un **Ditto Protocol Message** di tipo `merge` verso `smartpark:<device_id>`
-4. La prima volta che arriva un messaggio, Ditto crea il Thing automaticamente (**ImplicitThingCreation**); le volte successive lo aggiorna in modo incrementale
-
-Il Thing Ditto risultante ha questa struttura:
-```json
-{
-  "thingId": "smartpark:env-101",
-  "policyId": "smartpark:sensors-policy",
-  "attributes": {
-    "type": "environmental",
-    "device_id": "env-101",
-    "lastUpdate": "2026-05-06T10:00:00Z",
-    "lat": 39.324150,
-    "lng": 16.467320
-  },
-  "features": {
-    "sensors": {
-      "properties": {
-        "temperature_c": 22.4,
-        "humidity_pct": 55.1,
-        "pressure_hpa": 1013.2,
-        "co2_ppm": 420
-      }
-    }
-  }
-}
-```
-
-### Passo 3 — Doppio sink parallelo
-
-Il messaggio MQTT viene contemporaneamente:
-
-- **Consumato da Ditto Connectivity** → aggiorna il Digital Twin (stato corrente)
-- **Consumato da Telegraf** → scritto in InfluxDB con tag `device_id` e `type` (storico time-series)
-
-I due path sono completamente indipendenti e leggono dallo stesso broker Mosquitto.
-
-### Passo 4 — Lettura dalla Dashboard (SSE + REST)
-
-La dashboard React usa un approccio **ibrido** in due fasi (implementato in `useDittoSSE.js`):
-
-**Fase A — Snapshot iniziale** (HTTP + paginazione cursore):
-```
-GET /ditto/2/search/things?fields=thingId,features,attributes&option=size(200)
-```
-Scarica tutti i Things esistenti iterando automaticamente sui cursori Ditto finché non li ha ottenuti tutti. Questo garantisce che la mappa sia popolata immediatamente all'avvio.
-
-**Fase B — Stream SSE** (Server-Sent Events):
-```
-GET /ditto/2/things?fields=thingId,features,attributes
-Accept: text/event-stream
-```
-Riceve in tempo reale gli eventi `created`, `modified`, `deleted` da Ditto. Per ogni evento aggiorna lo state React corrispondente senza fare polling. In caso di disconnessione, riconnette automaticamente dopo 5 secondi.
-
----
-
-## Simulazione Sensori (Node-RED)
-
-I flow Node-RED (in `nodered_data/flows.json`) simulano 4 categorie di dispositivi reali, organizzati in tab separati:
-
-### Tab 1 — Sentiment Analysis (20 microfoni, ogni 8s)
-
-Simula 20 microfoni (`mic-300` … `mic-319`) distribuiti casualmente all'interno del perimetro della riserva. Le coordinate GPS sono generate con un algoritmo **point-in-polygon** che garantisce che ogni sensore cada all'interno del perimetro reale (coordinate WGS84 hardcodate). Ogni tick genera:
-- `sentiment`: `positive` / `neutral` / `negative` (con probabilità 70% speech detected)
-- `sentiment_score`: float in [-1.0, 1.0] coerente col sentiment
-- `noise_db`: rumore in dB (55-82 se speech, 28-48 se silenzio)
-- `transcript`: frase campione se speech detected
-
-### Tab 2 — Computer Vision (7 telecamere, ogni 6s)
-
-Simula 7 telecamere AI (`cam-200` … `cam-206`) con posizioni fisse nella riserva:
-- `person_count`: intero 0-20
-- `crowd_density`: `empty` / `low` / `medium` / `high`
-- `anomaly_detected`: boolean (10% probabilità)
-- `dominant_emotion`: `neutral` / `happy` / `angry` / `sad`
-
-### Tab 3 — Environmental Monitoring (10 sensori, ogni 2s)
-
-Simula 10 stazioni ambientali (`env-100` … `env-109`) con posizioni fisse GPS persistenti tramite `context.set()` di Node-RED:
-- `temperature_c`: 15-35 °C
-- `humidity_pct`: 30-90%
-- `pressure_hpa`: 980-1030 hPa
-- `co2_ppm`: 350-1200 ppm
-
-### Tab 4 — Activity Recognition (3 wearable, ogni 1-2s)
-
-Simula 3 visitatori con dispositivi Shimmer BSN (`shimmer-visitor-02`, `04`, `05`) che si spostano lungo percorsi predefiniti all'interno della riserva (array di waypoint GPS). Il movimento è interpolato linearmente tra i waypoint con velocità realistica. Ogni tick:
-- Aggiorna `lat`/`lng` → il marker si muove sulla mappa in tempo reale
-- Genera `heart_rate_bpm` variabile per attività (`walking` = 90-98, `hiking` = 110-118, `standing` = 70-78)
-- Accumula `steps_total`
-
----
-
-## Mapper JavaScript Ditto
-
-Il mapper (`ditto/connections/mqtt-connection.json`, campo `incomingScript`) traduce un messaggio MQTT generico nel formato Ditto Protocol.
+### Flusso bidirezionale (App → Sensore)
 
 ```
-MQTT payload (JSON libero)
-         │
-         ▼  mapToDittoProtocolMsg()
-┌─────────────────────────────────────────────────────────┐
-│  1. Estrai device_id dall'ultimo segmento topic MQTT    │
-│  2. Leggi attributes dal payload (inclusi lat/lng/type) │
-│  3. Metti json.data → features.sensors.properties       │
-│  4. Costruisci Ditto Protocol MERGE:                    │
-│       namespace = "smartpark"                           │
-│       entity    = device_id                             │
-│       action    = "merge"  (patch incrementale)         │
-│       body      = { policyId, attributes, features }    │
-└─────────────────────────────────────────────────────────┘
-         │
-         ▼
-  Ditto crea/aggiorna il Thing smartpark:<device_id>
-```
-
-Il comando `merge` (Ditto v3+) aggiorna solo i campi presenti nel payload, lasciando invariati gli altri. Questo consente di inviare update parziali senza sovrascrivere dati precedenti.
-
----
-
-## Persistenza Storica (Telegraf → InfluxDB → Grafana)
-
-### Telegraf (`telegraf/telegraf.conf`)
-
-Telegraf si iscrive a `smartpark/telemetry/#` e usa il parser JSON. La configurazione chiave:
-
-```toml
-tag_keys = ["device_id", "type"]   # diventano tag (indicizzati per query efficienti)
-json_time_key = "timestamp"         # usa il timestamp del sensore, non l'ora di arrivo
-name_override = "sensor_reading"    # measurement name in InfluxDB
-```
-
-I campi del blocco `data` del payload diventano fields InfluxDB con prefisso `data_`:
-- `data.temperature_c` → field `data_temperature_c`
-- `data.humidity_pct` → field `data_humidity_pct`
-
-### InfluxDB
-
-- **Organizzazione**: `smart-park`
-- **Bucket**: `sensor-data`
-- **Token**: `smart-park-token-12345`
-- **Measurement**: `sensor_reading`
-
-### Grafana
-
-Pre-configurato tramite provisioning (`grafana/provisioning/`). Esistono due dashboard:
-
-1. `smart-park.json` — dashboard statica con panel fissi per device_id noti
-2. `smart-park-dynamic.json` — dashboard con variabili `var-sensor_id` e `var-field`, usata dal Monitoraggio Avanzato per costruire URL dinamici per ogni selezione
-
----
-
-## Dashboard React — Architettura Frontend
-
-La dashboard (`dashboard/frontend/`) è costruita con React + Vite + Tailwind CSS. Non ha backend: legge direttamente da Ditto (SSE + REST) e incorpora Grafana via iframe.
-
-### Struttura dei componenti
-
-```
-App.jsx
-├── StatusBar.jsx              ← barra superiore: metriche aggregate, anomalie, sentiment
-├── AdvancedMonitoring.jsx     ← schermata full-screen analisi avanzata
-├── SentimentPopup.jsx         ← popup dettaglio sentiment audio
-├── SensorList.jsx             ← sidebar sinistra: lista sensori raggruppata per tipo
-├── ParkMap.jsx                ← mappa Leaflet con marker live e overlay zone
-└── SensorPanel.jsx            ← pannello dettaglio (aperto al click su un sensore)
-```
-
-### Hook: `useDittoSSE.js`
-
-È il cuore del frontend. Gestisce tutta la comunicazione con Ditto:
-
-```
-useDittoSSE()
-  ├── Fase A: DittoQueryBuilder.executeAll()
-  │     └── Loop paginato su Search API
-  │           GET /ditto/2/search/things?option=size(200)[,cursor(X)]
-  │           Itera finché cursor è null o raggiunge 50 pagine (guardia)
-  │
-  ├── processPayload(thing)
-  │     └── Flattening: merge features.*.properties in top-level
-  │           { thingId, attributes, features, ...telemetryProps }
-  │
-  └── Fase B: fetch SSE (Things API)
-        GET /ditto/2/things  Accept: text/event-stream
-        └── Reader loop su ReadableStream chunked
-              event: created/modified → processPayload() → merge() → setState
-              event: deleted          → remove() → setState
-              disconnessione          → riconnette dopo 5s
-```
-
-Il risultato è `sseThings`: un dizionario `{ thingId → Thing }` sempre aggiornato, passato come prop a tutti i componenti.
-
-### Componente: `ParkMap.jsx`
-
-Usa **react-leaflet** per la mappa OpenStreetMap centrata sulla riserva (lat 39.324540, lng 16.467701, zoom 17).
-
-**Marker dinamici**: per ogni sensore in `initialPins`, le coordinate vengono lette dal live data SSE con fallback progressivo:
-```js
-lat = data?.attributes?.lat ?? data?.lat ?? data?.features?.sensors?.properties?.lat ?? sensor.lat
-```
-I wearable (che trasmettono lat/lng in `features.sensors.properties`) si spostano sulla mappa in tempo reale ad ogni evento SSE.
-
-**ZoneOverlay**: overlay delle zone del parco in due modalità configurabili in `zoneConfig.js`:
-- **POI semantica** (se `ZONES` ha voci): cerchi centrati sulle coordinate configurate
-- **Geo-Grid automatica** (default, `ZONES` vuoto): calcola il bounding box di tutti i sensori presenti e lo divide in una griglia 3×2 (NW, N, NE, SW, S, SE)
-
-**Anomalie**: se `anomaly_detected = true`, il marker diventa rosso e compare un anello lampeggiante CSS (`anomaly-ring`).
-
-**Perimetro riserva**: poligono verde semi-trasparente tracciato sulle coordinate reali della riserva.
-
-### Componente: `AdvancedMonitoring.jsx`
-
-Schermata full-screen per l'analisi avanzata con Grafana. Funzionamento:
-
-**Schema derivato dinamicamente** (`thingSchema.js`):
-```
-sseThings (live)
-    │
-    ▼  deriveSchema()
-schema = {
-  "environmental": {
-    "Zona NW": {
-      "smartpark:env-101": {
-        label: "env-101",
-        metrics: ["co2_ppm", "humidity_pct", "pressure_hpa", "temperature_c"]
-      }
-    }
-  },
-  "vision": { ... }
-}
-```
-L'assegnazione di zona usa `assignZone()`, che in modalità Geo-Grid normalizza le coordinate rispetto al bounding box e calcola la cella di appartenenza.
-
-**Selezione gerarchica** (`ThingTreeFilter`):
-Albero a 4 livelli: Tipo → Zona → Sensore → Metrica. Ogni livello ha una checkbox con tre stati (checked / indeterminate / unchecked), calcolati contando le metriche selezionate nei discendenti.
-
-La selezione è un `Set<"thingId::metric">`, es.: `"smartpark:env-101::temperature_c"`.
-
-**Costruzione URL Grafana dinamici**:
-```
-selezione attiva
-    │
-    ▼  (raggruppa per metrica unica)
-buildGrafanaUrl({
-  panelId: 200,
-  from: "now-1h",
-  deviceIds: ["env-101", "env-103"],  // tutti i sensori con quella metrica selezionata
-  fields: ["temperature_c"]
-})
-    │
+Dashboard React
+    │  PUT /api/2/things/<id>/features/sensors/desiredProperties/<key>
     ▼
-URL: http://localhost:3000/d-solo/smart-park-dynamic/smart-park-dynamic?
-     orgId=1&panelId=200&from=now-1h&to=now&refresh=15s&theme=dark&
-     var-sensor_id=env-101&var-sensor_id=env-103&var-field=data_temperature_c
-```
-
-**Modalità Raggruppata**: un iframe Grafana per ogni metrica selezionata (tutti i sensori di quella metrica sovrapposti nello stesso grafico).
-
-**Modalità Confronto**: un iframe aggregato con tutti i device e tutte le metriche, più stat panel per ogni singolo device (ultimi valori).
-
-### Componente: `SensorPanel.jsx`
-
-Pannello laterale destro (620px) che si apre al click su un sensore. Mostra:
-
-1. **Badge stato**: Live SSE / Offline + eventuale badge Anomalia
-2. **Misure Real-Time** — tutti i fields in `features.sensors.properties` (escluse lat/lng), con icona e unità da `telemetryDictionary`
-3. **Informazioni Base** — attributi del thing (esclusi lat/lng/type e campi già nelle misure)
-4. **Grafici Storici** — iframe Grafana filtrati per `device_id` e panel scelti per `attributes.type`
-
-### `StatusBar.jsx`
-
-Calcola metriche aggregate da tutti i `sseThings` in tempo reale:
-- Temperatura media: `avg(['temperature', 'temperature_c'])`
-- Umidità media: `avg(['humidity', 'humidity_pct'])`
-- CO₂ media: `avg(['co2_ppm', 'air_quality'])`
-- Totale persone rilevate: `sum(['person_count', 'motion', 'activity'])`
-- Rumore medio: `avg(['noise', 'noise_db'])`
-- Conteggio anomalie: `.filter(d => d.anomaly || d.anomaly_detected).length`
-- Sentiment dominante: media dei `sentiment_score` dei sensori audio → positivo/neutro/negativo
-
-### `DittoQueryBuilder.js`
-
-Utility builder per le query Ditto Search API. Caratteristiche:
-- Builder fluente: `filterByType()`, `hasAttribute()`, `hasTelemetry()`, `sortBy()`
-- Paginazione con cursore: genera `option=size(200),cursor(X)` come singolo parametro (requisito Ditto)
-- `executeAll()`: scarica automaticamente tutte le pagine con guardia anti-loop (max 50 pagine)
-
----
-
-## Struttura del Progetto
-
-```
-smart_park_project/
-│
-├── docker-compose.yml                # Stack completo (15 servizi)
-├── setup.sh                          # Setup nginx htpasswd + avvio Docker (Linux)
-│
-├── ditto/
-│   ├── setup.sh                      # Crea policy e connessione MQTT su Ditto (Linux)
-│   ├── setup.ps1                     # Idem per Windows PowerShell
-│   ├── policies/
-│   │   └── smartpark-sensors-policy.json   # Policy accessi Things nel namespace smartpark
-│   └── connections/
-│       └── mqtt-connection.json      # Configurazione bridge MQTT + mapper JavaScript
-│
-├── dashboard/
-│   └── frontend/
-│       ├── vite.config.js            # Proxy /ditto/* → http://localhost:8080/api/2/*
-│       └── src/
-│           ├── App.jsx               # Root: stato globale, composizione componenti
-│           ├── hooks/
-│           │   └── useDittoSSE.js    # Hook SSE: snapshot iniziale + stream live mutazioni
-│           ├── components/
-│           │   ├── StatusBar.jsx         # Barra superiore: metriche aggregate
-│           │   ├── ParkMap.jsx           # Mappa Leaflet + zone + marker sensori
-│           │   ├── SensorList.jsx        # Sidebar sinistra lista sensori per tipo
-│           │   ├── SensorPanel.jsx       # Pannello dettaglio sensore (Grafana + telemetria)
-│           │   ├── AdvancedMonitoring.jsx # Schermata analisi avanzata full-screen
-│           │   └── SentimentPopup.jsx    # Popup dettaglio analisi sentiment
-│           ├── config/
-│           │   └── sensorConfig.js       # Dizionario tipi sensore e metriche telemetria
-│           └── utils/
-│               ├── DittoQueryBuilder.js  # Builder query Search API con paginazione cursore
-│               ├── thingSchema.js        # Derivazione schema gerarchico tipo→zona→sensore→metrica
-│               └── zoneConfig.js         # Configurazione zone parco (POI semantica o Geo-Grid)
-│
-├── mosquitto/config/
-│   └── mosquitto.conf                # MQTT broker: anonymous access, WebSocket porta 9001
-│
-├── nginx/
-│   ├── nginx.conf                    # Reverse proxy Ditto (porta 8080), basic auth
-│   └── nginx.htpasswd                # Credenziali: ditto/ditto, devops/devops
-│
-├── nodered_data/
-│   └── flows.json                    # 4 tab: sentiment, vision, environmental, activity
-│
-├── telegraf/
-│   └── telegraf.conf                 # MQTT consumer → InfluxDB writer
-│
-└── grafana/provisioning/
-    ├── datasources/
-    │   └── influxdb.yaml             # Datasource InfluxDB pre-configurata
-    └── dashboards/
-        ├── smart-park.json           # Dashboard statica (panel fissi per device noti)
-        └── smart-park-dynamic.json   # Dashboard con var-sensor_id e var-field
+Ditto REST API (via nginx :8080)
+    │  emette evento twin/events su MQTT
+    ▼ smartpark/events/<thingId>
+Mosquitto
+    │  subscribe smartpark/events/#
+    ▼
+Node-RED (tab "Bidirectional Control")
+    │  global.set('state_<deviceId>', { key: value })
+    ▼
+Generator functions (inject loops)
+    │  leggono global state e modificano la simulazione
+    ▼
+Sensore simulato aggiornato
 ```
 
 ---
 
-## Prerequisiti e Avvio
+## Servizi e porte
 
-### Prerequisiti
+| Servizio              | Porta  | Credenziali               | Note                          |
+|-----------------------|--------|---------------------------|-------------------------------|
+| Ditto REST API        | 8080   | `ditto` / `ditto`         | Via nginx + Basic Auth        |
+| Ditto Explorer UI     | 8081   | —                         | Interfaccia web Ditto         |
+| Node-RED              | 1880   | —                         | Simulatore + bridge HTTP→MQTT |
+| Mosquitto MQTT        | 1883   | —                         | No auth (rete Docker interna) |
+| Mosquitto WebSocket   | 9001   | —                         |                               |
+| InfluxDB UI           | 8086   | `admin` / `admin-secret`  | Time-series storage           |
+| Grafana               | 3000   | `admin` / `admin`         | Dashboard storiche            |
+| Dashboard React (dev) | 5173   | —                         | `npm run dev`                 |
+| MongoDB               | 27017  | `ditto` / `ditto-secret`  | Persistence per Ditto         |
 
-| Strumento | Versione minima |
-|-----------|----------------|
-| Docker Desktop | 24+ |
-| Docker Compose | v2 |
-| Node.js | 18+ |
-| npm | 9+ |
+---
 
-Su Linux installa anche `apache2-utils` per `htpasswd`:
+## Prerequisiti
+
+| Strumento      | Versione minima |
+|----------------|-----------------|
+| Docker Engine  | 24+             |
+| Docker Compose | v2              |
+| Node.js        | 18+             |
+| npm            | 9+              |
+
+---
+
+## Avvio
+
+### 1. Crea le directory necessarie
+
 ```bash
-sudo apt install -y apache2-utils
+mkdir -p mappers/commonjs
 ```
 
-### 1. Avvia lo stack Docker
+> `ditto-connectivity` monta questo volume in sola lettura per caricare il mapper JS compilato. La directory deve esistere prima di `docker compose up`.
 
-**Linux / macOS:**
+### 2. Genera le credenziali nginx
+
 ```bash
-chmod +x setup.sh ditto/setup.sh
-bash setup.sh
+# Linux / macOS (richiede apache2-utils: sudo apt install -y apache2-utils)
+htpasswd -cb nginx/nginx.htpasswd ditto ditto
+htpasswd -b  nginx/nginx.htpasswd devops devops
 ```
 
-Lo script genera `nginx/nginx.htpasswd` e avvia tutti i container con `docker compose up -d`.
-
-**Windows (PowerShell come Amministratore):**
 ```powershell
-$hash = & docker run --rm httpd:alpine htpasswd -nbB ditto ditto
-"ditto:$hash" | Out-File -Encoding ascii nginx\nginx.htpasswd
+# Windows PowerShell (come Amministratore)
+$hash  = & docker run --rm httpd:alpine htpasswd -nbB ditto  ditto
 $hash2 = & docker run --rm httpd:alpine htpasswd -nbB devops devops
-"devops:$hash2" | Out-File -Encoding ascii -Append nginx\nginx.htpasswd
+"ditto:$hash`ndevops:$hash2" | Out-File -Encoding ascii nginx\nginx.htpasswd
+```
+
+### 3. Avvia lo stack Docker
+
+```bash
 docker compose up -d
 ```
 
-> Al primo avvio attendere **2-3 minuti** per l'inizializzazione del cluster Ditto (Pekko/Akka).
+> Al primo avvio attendere 2-3 minuti per l'inizializzazione del cluster Pekko/Akka di Ditto.
 
-### 2. Controlla i container
+### 4. Configura Eclipse Ditto
+
+Dopo che lo stack è up, esegui lo script di setup per creare la policy e la connessione MQTT:
+
+```bash
+# Linux / macOS
+bash ditto/setup.sh
+
+# Con reset (elimina e ricrea policy e connessione esistenti)
+bash ditto/setup.sh --reset
+```
+
+```powershell
+# Windows
+.\ditto\setup.ps1
+.\ditto\setup.ps1 -Reset
+```
+
+Lo script esegue:
+1. Attende che Ditto risponda (poll attivo, max 150s)
+2. Crea / aggiorna la policy `smartpark:sensors-policy`
+3. Crea / aggiorna la connessione MQTT `smartpark-mqtt-connection`
+4. Verifica lo stato della connessione
+5. Smoke test opzionale (se `mosquitto_pub` è disponibile)
+
+### 5. Avvia la dashboard React
+
+```bash
+cd dashboard/frontend
+npm install      # solo al primo avvio o dopo aggiornamenti
+npm run dev
+```
+
+La dashboard sarà disponibile su **http://localhost:5173**.
+
+> Se `vite` non è eseguibile dopo `npm install`, esegui `chmod +x node_modules/.bin/*`.
+
+### 6. Verifica stato container
 
 ```bash
 docker compose ps
 ```
 
-Tutti i servizi devono essere `healthy` o `Up`.
-
-### 3. Configura Eclipse Ditto
-
-```bash
-bash ditto/setup.sh
-```
-
-Lo script:
-1. Attende che Ditto risponda (polling max 150s)
-2. Crea la policy `smartpark:sensors-policy`
-3. Crea la connessione MQTT `smartpark-mqtt-connection`
-4. Verifica lo stato della connessione
-5. Esegue uno smoke test automatico (se `mosquitto_pub` è installato)
-
-Per resettare tutto:
-```bash
-bash ditto/setup.sh --reset
-```
-
-### 4. Avvia la Dashboard React
-
-```bash
-cd dashboard/frontend
-npm install
-npm run dev
-```
-
-La dashboard è disponibile su **http://localhost:5173**
-
-Il Vite dev server fa proxy di `/ditto/*` → `http://localhost:8080/api/*`, quindi non servono credenziali nel browser.
+Tutti i servizi devono risultare `healthy` o `Up`. I servizi Ditto impiegano ~2 minuti prima di diventare `healthy`.
 
 ---
 
-## Configurazione Eclipse Ditto
+## Tipi di sensori simulati (Node-RED)
 
-### Policy (`ditto/policies/smartpark-sensors-policy.json`)
+Node-RED espone 6 tab di flow, ognuna con i propri nodi inject che pubblicano su `smartpark/telemetry/<deviceId>`:
 
-Controlla chi può leggere e scrivere i Things nel namespace `smartpark`:
-- `nginx:ditto` (usato dal mapper Connectivity) → permesso di scrittura Things
-- `ditto:ditto` (dashboard) → permesso di lettura Things e SSE
+| Tab Node-RED              | Tipo (`attributes.type`) | Device ID prefix | Intervallo |
+|---------------------------|--------------------------|------------------|------------|
+| Env Monitoring            | `environmental`          | `env-1xx`        | 12s        |
+| Computer Vision           | `vision`                 | `cam-2xx`        | 6s         |
+| Sentiment Analysis        | `sentimentAnalysis`      | `mic-3xx`        | 8s         |
+| Activity Recognition      | `activityRecognition`    | `shimmer-visitor-01/02` | 2s |
+| HTTP → MQTT Bridge        | `environmental`          | `env-<id>`       | Su richiesta HTTP POST |
+| Bidirectional Control     | (listener)               | —                | Evento-driven |
 
-### Connessione MQTT (`ditto/connections/mqtt-connection.json`)
+### Struttura payload MQTT (formato attuale)
 
-| Campo | Valore |
-|-------|--------|
-| `uri` | `tcp://mosquitto:1883` (rete interna Docker) |
-| `sources[0].addresses` | `smartpark/telemetry/#` |
-| `sources[0].payloadMapping` | `dynamic-json-mapper` (JavaScript) |
-| `targets[0].address` | `smartpark/events/{{ thing:id }}` |
+```json
+{
+  "device_id": "env-101",
+  "type": "environmental",
+  "features": {
+    "sensors": {
+      "properties": {
+        "temperature": 22.4,
+        "humidity": 58.1,
+        "pressure": 101325,
+        "noise": 42.3,
+        "light": 65,
+        "anomaly_detected": false
+      },
+      "desiredProperties": {}
+    },
+    "motion": {
+      "properties": { "tof": 320, "angle": 1.2, "accX": 0.01 }
+    },
+    "gateway": {
+      "properties": { "EG5120_CPU_Temperature": 45, "EG5120_CPU_status": "NORMAL" }
+    }
+  },
+  "attributes": { "lat": 39.3241, "lng": 16.4678 },
+  "timestamp": "2026-06-09T10:00:00.000Z"
+}
+```
 
-Il target pubblica su MQTT gli eventi di modifica dei Twin (utile per debug con MQTT Explorer a :4000).
+Il mapper accetta anche il formato legacy con `"data": { ... }` al posto di `"features"`.
 
-### Verifica rapida
+---
+
+## Eclipse Ditto — Mapper JavaScript
+
+La connessione MQTT (`smartpark-mqtt-connection`) usa un **mapper JavaScript custom** per tradurre i messaggi MQTT in Ditto Protocol Messages e viceversa.
+
+### Script inbound (`incomingScript`)
+
+Riceve il payload MQTT grezzo e produce un `merge` command sul Digital Twin:
+
+- Estrae `deviceId` dall'ultimo segmento del topic MQTT (es. `smartpark/telemetry/env-101` → `env-101`)
+- Mappa `attributes` del payload in attributi Ditto
+- Se il payload ha `features` (formato nuovo), li passa direttamente
+- Se il payload ha `data` (formato legacy), lo converte in `features/sensors/properties`
+- Supporta anche `motion` e `gateway` come feature separate
+- Usa `Ditto.buildDittoProtocolMsg` con `merge` command e `policyId: smartpark:sensors-policy`
+- I Things vengono creati automaticamente al primo messaggio (**ImplicitThingCreation**)
+
+### Script outbound (`outgoingScript`)
+
+Converte gli eventi Ditto in messaggi MQTT pubblicati su `smartpark/events/<thingId>`:
+
+- Filtra solo gli eventi che coinvolgono `desiredProperties` (modifiche di controllo)
+- Pubblica un payload JSON con `{ thingId, path, data, success, status }`
+- Gli altri eventi twin (telemetria) vengono ignorati (`return null`)
+
+---
+
+## Bidirezionalità — Controllo App → Sensore
+
+Il sistema supporta il controllo in tempo reale dei sensori simulati dalla dashboard. Ogni sensore espone **desiredProperties** modificabili tramite UI.
+
+### Flusso tecnico completo
+
+#### 1. Dashboard invia il comando
+
+`useDittoPatch.js` esegue una `PUT` sulla REST API di Ditto:
+
+```
+PUT /api/2/things/smartpark:<deviceId>/features/sensors/desiredProperties/<key>
+Authorization: Basic ZGl0dG86ZGl0dG8=
+Content-Type: application/json
+
+<value>
+```
+
+Esempio: attivare lo stato di allerta su una camera
+
+```
+PUT /api/2/things/smartpark:cam-201/features/sensors/desiredProperties/alert_active
+Content-Type: application/json
+
+true
+```
+
+#### 2. Ditto emette un evento MQTT
+
+La connessione `smartpark-mqtt-connection` ha un **target** configurato su `smartpark/events/{{ thing:id }}` per il topic `_/_/things/twin/events`. L'`outgoingScript` filtra solo gli eventi relativi a `desiredProperties` e pubblica:
+
+```json
+{
+  "thingId": "smartpark:cam-201",
+  "path": "/features/sensors/desiredProperties/alert_active",
+  "data": true,
+  "success": true,
+  "status": 200
+}
+```
+
+sul topic: `smartpark/events/smartpark:cam-201`
+
+#### 3. Node-RED intercetta l'evento
+
+Il tab **"Bidirectional Control"** contiene:
+- Un nodo `mqtt in` in ascolto su `smartpark/events/#`
+- Una function `Store desired state` che estrae `thingId`, `path` e `data` e salva il valore in `global.set('state_<deviceId>', { key: value })`
+
+#### 4. I generator applicano lo stato
+
+I nodi function di simulazione leggono lo stato globale all'inizio di ogni ciclo:
+
+```javascript
+var _state = global.get('state_' + sensor.device_id) || {};
+var alertActive = _state.alert_active !== undefined
+  ? _state.alert_active
+  : global.get('alert_active') || false;
+```
+
+Il comportamento simulato cambia di conseguenza (es. `alert_active: true` → temperature alte, anomalie, sentiment negativo).
+
+### Proprietà controllabili per tipo sensore
+
+| Chiave desiredProperty      | Tipo sensore      | Widget UI  | Descrizione                              |
+|-----------------------------|-------------------|------------|------------------------------------------|
+| `alert_active`              | Tutti             | Toggle     | Attiva simulazione di emergenza          |
+| `sampling_rate_s`           | Environmental     | Slider     | Intervallo campionamento (5-300s)        |
+| `alert_threshold_temp`      | Environmental     | Slider     | Soglia temperatura allerta (20-80°C)     |
+| `tracking_mode`             | Vision            | Select     | person / crowd / anomaly / disabled      |
+| `confidence_threshold`      | Vision            | Slider     | Soglia confidenza AI (0.5-1.0)           |
+| `night_mode`                | Vision            | Toggle     | Filtro infrarosso                        |
+| `frame_rate_fps`            | Vision            | Slider     | Frame rate (1-30 fps)                    |
+| `sensitivity`               | sentimentAnalysis | Slider     | Sensibilità microfono (0.0-1.0)          |
+| `noise_threshold_db`        | sentimentAnalysis | Slider     | Soglia rumore allerta (40-100 dB)        |
+| `sampling_rate_hz`          | activityRecognition | Slider   | Frequenza IMU (1-50 Hz)                  |
+| `vibration_alert_enabled`   | activityRecognition | Toggle   | Abilita alert vibrazione                 |
+| `vibration_threshold`       | activityRecognition | Slider   | Soglia vibrazione (0.5-10 g)             |
+
+> Le desiredProperties compaiono nel pannello **"Controllo"** del SensorPanel solo se il sensore le pubblica nel payload (nel campo `features/sensors/desiredProperties`). Attualmente i flow Node-RED le includono con oggetto vuoto `{}` — per esporre i controlli nella UI, rimuovi il commento dai campi `desiredProperties` nella function del sensore corrispondente.
+
+### HTTP → MQTT Bridge (Gateway EG5120)
+
+Node-RED espone un endpoint HTTP per ricevere dati dal gateway industriale Robustel EG5120:
+
+```
+POST http://localhost:1880/sensors/env
+Content-Type: application/json
+
+{
+  "device_id": "42",
+  "latitude": 39.3241,
+  "longitude": 16.4678,
+  "temperature": 24.5,
+  "humidity": 61.0,
+  "timestamp": "2026-06-09T10:00:00Z"
+}
+```
+
+La function `→ SmartPark format (generic)`:
+- Prefissa `device_id` con `env-` (produce `env-42`)
+- Normalizza i nomi campo (es. `temperatura` → `temperature_c`)
+- Sposta `latitude`/`longitude` in `attributes.lat`/`attributes.lng`
+- Pubblica su `smartpark/telemetry/env-42`
+- Risponde HTTP 202 con `{ ok: true, device_id, topic, fields }`
+
+---
+
+## Policy Ditto
+
+La policy `smartpark:sensors-policy` concede all'utente `nginx:ditto` accesso completo (READ+WRITE) su Things, Policy e Messages:
+
+```json
+{
+  "entries": {
+    "owner": {
+      "subjects": { "nginx:ditto": { "type": "nginx basic auth user" } },
+      "resources": {
+        "thing:/":   { "grant": ["READ", "WRITE"] },
+        "policy:/":  { "grant": ["READ", "WRITE"] },
+        "message:/": { "grant": ["READ", "WRITE"] }
+      }
+    }
+  }
+}
+```
+
+L'utente `nginx:ditto` corrisponde all'autenticazione Basic Auth con username `ditto` passata da nginx tramite l'header `x-ditto-pre-authenticated`.
+
+---
+
+## Dashboard React — Architettura frontend
+
+```
+src/
+├── App.jsx                  # Radice: stato globale, filtri tipo/metrica
+├── components/
+│   ├── ParkMap.jsx          # Mappa Leaflet con pin colorati per tipo
+│   ├── SensorList.jsx       # Lista sensori con filtro tipo e metrica
+│   ├── SensorPanel.jsx      # Pannello dettaglio: metriche + controllo
+│   ├── StatusBar.jsx        # Barra stato: SSE connected, contatori
+│   ├── AdvancedMonitoring.jsx # Iframe Grafana filtrato per sensore
+│   ├── SentimentPanel.jsx   # Vista sentiment audio
+│   └── SentimentPopup.jsx   # Popup analisi sentiment
+├── hooks/
+│   ├── useDittoSSE.js       # Snapshot HTTP + stream SSE Things
+│   ├── useDittoPatch.js     # PUT desiredProperties (controllo bidir.)
+│   └── useSensorTD.js       # Fetch Thing Description (WoT-like)
+├── utils/
+│   ├── DittoQueryBuilder.js # Builder query Search API con paginazione cursore
+│   ├── thingSchema.js       # Schema validazione Thing
+│   └── zoneConfig.js        # Configurazione zone mappa
+└── config/
+    └── sensorConfig.js      # Icone, colori, metadati metriche e desiredProperties
+```
+
+### useDittoSSE — Caricamento ibrido
+
+1. **Snapshot iniziale**: scarica tutti i Things via `GET /ditto/2/search/things` con paginazione automatica (cursore, max 200 per pagina) tramite `DittoQueryBuilder.executeAll()`
+2. **Stream live**: apre `GET /ditto/2/things` con `Accept: text/event-stream` per ricevere eventi `created`, `modified`, `deleted` in tempo reale
+3. **Deep-merge features**: gli eventi SSE possono essere parziali; la funzione `deepMergeFeatures` preserva le feature non menzionate nell'evento
+
+### Proxy Vite
+
+```javascript
+'/ditto' → 'http://localhost:8080/api'   // Ditto REST API
+'/api'   → 'http://localhost:8000'       // (riservato, non usato)
+```
+
+---
+
+## Telegraf — Bridge MQTT → InfluxDB
+
+Telegraf si iscrive a `smartpark/telemetry/#` e scrive i dati nel bucket `sensor-data` di InfluxDB:
+
+- **Measurement**: `sensor_reading`
+- **Tags**: `device_id`, `type`
+- **Timestamp**: dal campo `timestamp` del payload JSON
+- **Fields**: tutti i campi numerici/stringa del payload
+
+---
+
+## Struttura del progetto
+
+```
+smart_park_project/
+├── docker-compose.yml              # Stack completo (14 servizi)
+├── README.md
+├── MQTT_PUBLIC_BROKER.md           # Note broker MQTT pubblico
+├── start-mqtt-tunnel.ps1           # Script tunnel MQTT per Windows
+├── nginx/
+│   ├── nginx.conf                  # Reverse proxy + CORS + Basic Auth
+│   └── nginx.htpasswd              # Credenziali (ditto, devops)
+├── mosquitto/config/
+│   └── mosquitto.conf              # Configurazione broker MQTT
+├── ditto/
+│   ├── setup.sh                    # Setup Ditto (Linux/macOS)
+│   ├── setup.ps1                   # Setup Ditto (Windows)
+│   ├── policies/
+│   │   ├── smartpark-sensors-policy.json
+│   │   └── smart-park-policy.json  # (legacy)
+│   └── connections/
+│       └── mqtt-connection.json    # Connessione MQTT + mapper JS
+├── mappers/
+│   └── commonjs/                   # Output mapper JS (montato da ditto-connectivity)
+├── dashboard/
+│   └── frontend/                   # React + Vite + Tailwind + Leaflet
+│       ├── src/
+│       ├── vite.config.js          # Proxy /ditto → :8080/api
+│       └── package.json
+├── nodered_data/
+│   ├── flows.json                  # Flow simulazione sensori
+│   ├── flows_http_bridge.json      # Flow bridge HTTP→MQTT (backup)
+│   └── settings.js
+├── grafana/provisioning/
+│   ├── dashboards/                 # Dashboard pre-configurate
+│   └── datasources/
+│       └── influxdb.yaml           # Datasource InfluxDB
+├── telegraf/
+│   └── telegraf.conf               # Bridge MQTT → InfluxDB
+├── data/
+│   └── admin-ui.html               # UI amministrazione (smartpark-api)
+└── scripts/                        # Utility scripts Node.js
+    ├── query.js
+    ├── rebuild-flows-bidirectional.js
+    └── ...
+```
+
+---
+
+## Verifica rapida dello stack
 
 ```bash
 # Ditto risponde
 curl -u ditto:ditto http://localhost:8080/api/2/things
 
-# Lista Digital Twin creati
-curl -u ditto:ditto "http://localhost:8080/api/2/search/things?namespaces=smartpark"
+# Lista Digital Twin presenti
+curl -u ditto:ditto "http://localhost:8080/api/2/search/things?option=size(20)"
 
 # Stato connessione MQTT
 curl -u devops:devops http://localhost:8080/api/2/connections/smartpark-mqtt-connection/status
+
+# Test controllo bidirezionale: attiva allerta su un sensore
+curl -u ditto:ditto \
+  -X PUT "http://localhost:8080/api/2/things/smartpark:cam-201/features/sensors/desiredProperties/alert_active" \
+  -H "Content-Type: application/json" \
+  -d "true"
 ```
-
-### Test manuale invio sensore
-
-```bash
-mosquitto_pub -h localhost -p 1883 \
-  -t "smartpark/telemetry/env-test-01" \
-  -m '{"type":"environmental","device_id":"env-test-01","timestamp":"2026-01-01T00:00:00Z","data":{"temperature_c":22.0,"humidity_pct":50.0},"attributes":{"lat":39.3245,"lng":16.4677}}'
-```
-
-Dopo 2-3 secondi il Twin `smartpark:env-test-01` sarà visibile sulla mappa della dashboard.
 
 ---
 
-## Interfacce Web
-
-| Interfaccia | URL | Credenziali |
-|-------------|-----|-------------|
-| Dashboard Smart Park | http://localhost:5173 | — |
-| Ditto REST API | http://localhost:8080/api/2 | `ditto` / `ditto` |
-| Ditto Explorer UI | http://localhost:8081 | `ditto` / `ditto` |
-| Node-RED | http://localhost:1880 | — |
-| RabbitMQ Management | http://localhost:15672 | `hono` / `hono-secret` |
-| InfluxDB | http://localhost:8086 | `admin` / `admin-secret` |
-| Grafana | http://localhost:3000 | `admin` / `admin` |
-| MQTT Explorer | http://localhost:4000 | — |
-
----
-
-## Stop e Pulizia
+## Reset e pulizia
 
 ```bash
-# Ferma i container (dati preservati nei volumi Docker)
+# Ferma i container (i dati sono preservati nei volumi Docker)
 docker compose down
 
-# Reset completo: elimina anche tutti i volumi (perde tutti i dati InfluxDB/MongoDB)
+# Ferma e rimuovi TUTTI i dati (reset completo dei volumi)
 docker compose down -v
+
+# Dopo il reset, eseguire nuovamente i passi 1-4 della sezione Avvio
 ```
 
 ---
@@ -653,24 +525,31 @@ docker compose logs ditto-gateway --tail=50
 docker compose logs nginx --tail=20
 ```
 
-Attendi almeno 2 minuti dopo l'avvio. Il cluster Pekko impiega tempo a stabilizzarsi.
+Attendere almeno 2 minuti dall'avvio. Il cluster Pekko/Akka di Ditto impiega tempo per stabilizzarsi.
 
-### I Digital Twin non vengono creati dai messaggi MQTT
+### I pin non compaiono sulla dashboard
 
-1. Verifica la connessione MQTT:
+1. Verifica che i Things esistano in Ditto:
    ```bash
-   curl -u devops:devops http://localhost:8080/api/2/connections/smartpark-mqtt-connection/status
+   curl -u ditto:ditto "http://localhost:8080/api/2/search/things?option=size(5)"
    ```
-2. Controlla i log del mapper:
+2. Se `items: []`, i messaggi MQTT non arrivano. Controlla Node-RED:
    ```bash
-   docker compose logs ditto-connectivity --tail=100
+   docker compose logs smart_park_project-nodered-1 --tail=30
    ```
-3. Verifica che Mosquitto riceva i messaggi:
-   ```bash
-   docker compose logs mosquitto --tail=20
-   ```
+3. Verifica che i nodi inject abbiano `repeat` configurato (es. `8`, `6`, `12`, `2`). Se è vuoto, aprire http://localhost:1880 e configurarli manualmente, oppure modificare `nodered_data/flows.json`.
 
-### Credenziali nginx errate (401)
+### Il controllo bidirezionale non aggiorna il sensore
+
+1. Verifica che l'evento MQTT venga emesso da Ditto:
+   ```bash
+   # Iscriviti ai topic eventi con mosquitto_sub
+   mosquitto_sub -h localhost -p 1883 -t "smartpark/events/#" -v
+   ```
+2. Verifica che Node-RED riceva l'evento (tab "Bidirectional Control" → debug node)
+3. Controlla che `outgoingScript` del mapper non filtri l'evento — deve contenere `desiredProperties` nel path
+
+### Credenziali nginx errate (HTTP 401)
 
 ```bash
 htpasswd -cb nginx/nginx.htpasswd ditto ditto
@@ -678,29 +557,22 @@ htpasswd -b  nginx/nginx.htpasswd devops devops
 docker compose restart nginx
 ```
 
-### La mappa è vuota (nessun sensore)
+### I Digital Twin non vengono creati dai messaggi MQTT
 
-Verifica che Node-RED sia attivo e i flow siano in Deploy:
-1. Apri http://localhost:1880
-2. Clicca **Deploy** (bottone rosso in alto)
-3. Attendi 10-15 secondi per i primi messaggi MQTT
-
-### Grafana mostra pannelli vuoti
-
-Verifica che Telegraf stia scrivendo su InfluxDB:
 ```bash
-docker compose logs telegraf --tail=20
+# Verifica connessione Ditto↔Mosquitto
+curl -u devops:devops http://localhost:8080/api/2/connections/smartpark-mqtt-connection/status
+
+# Log Ditto Connectivity
+docker compose logs ditto-connectivity --tail=100
+
+# Log Mosquitto (deve mostrare PUBLISH da nodered-smartpark)
+docker compose logs mosquitto --tail=30
 ```
 
-Se Telegraf è attivo ma i dati non arrivano, verifica che il bucket `sensor-data` esista in InfluxDB (http://localhost:8086).
+### ditto-connectivity non si avvia (volume mappers mancante)
 
----
-
-## Note Tecniche
-
-- I Digital Twin si creano **automaticamente** al primo messaggio MQTT di un nuovo `device_id`: non serve configurazione manuale dei Things.
-- Il namespace Ditto è `smartpark`. I Thing ID hanno forma `smartpark:<device_id>`.
-- La dashboard usa **SSE** per aggiornamenti push senza polling: apre una connessione HTTP persistente con `Accept: text/event-stream`.
-- I wearable GPS trasmettono `lat`/`lng` in `features.sensors.properties` (non in `attributes`): il frontend gestisce entrambi i casi con fallback progressivo.
-- Ditto **Search API** e **Things API** sono endpoint distinti: solo la Search API supporta filtri RQL e paginazione; solo la Things API supporta SSE.
-- Il parametro di paginazione Ditto richiede `option=size(N),cursor(X)` come singolo query param (non `size` e `cursor` separati).
+```bash
+mkdir -p mappers/commonjs
+docker compose restart ditto-connectivity
+```
