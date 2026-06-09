@@ -99,6 +99,29 @@ function SelectWidget({ value, meta, onChange, disabled }) {
   )
 }
 
+// ── Widget: Text (fallback per chiavi non mappate) ──────────────────────────
+function TextWidget({ value, onChange, disabled }) {
+  const [localVal, setLocalVal] = useState(String(value ?? ''))
+  return (
+    <div className="flex gap-2 items-center w-full">
+      <input
+        type="text"
+        value={localVal}
+        disabled={disabled}
+        onChange={e => setLocalVal(e.target.value)}
+        className="flex-1 bg-slate-800 border border-slate-600 text-slate-200 text-xs rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50 font-mono"
+      />
+      <button
+        onClick={() => onChange(localVal)}
+        disabled={disabled}
+        className="text-[10px] px-2 py-1.5 rounded-lg bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 hover:bg-indigo-600/50 transition-all disabled:opacity-50"
+      >
+        Invia
+      </button>
+    </div>
+  )
+}
+
 // ── Sezione metriche ───────────────────────────────────────────────────────
 function MetricGrid({ title, data, excludeKeys = [] }) {
   const entries = Object.entries(data).filter(([k, v]) =>
@@ -255,6 +278,15 @@ function ControlPanel({ thingId, desiredProperties }) {
                 <SliderWidget
                   value={typeof value === 'number' ? value : meta.min ?? 0}
                   meta={meta}
+                  onChange={v => handleChange(key, v)}
+                  disabled={isLoading}
+                />
+              )}
+
+              {/* Fallback text input per chiavi non mappate in DESIRED_META */}
+              {meta.widget === 'text' && (
+                <TextWidget
+                  value={value}
                   onChange={v => handleChange(key, v)}
                   disabled={isLoading}
                 />
