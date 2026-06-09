@@ -73,7 +73,7 @@
       {
         "current": {},
         "datasource": { "type": "influxdb", "uid": "P951FEA4DE68E13C5" },
-        "description": "Campo InfluxDB con prefisso data_. Multi-selezione supportata.",
+        "description": "Campo InfluxDB con prefisso features_sensors_properties_. Multi-selezione supportata.",
         "hide": 0,
         "includeAll": true,
         "allValue": ".*",
@@ -81,7 +81,7 @@
         "multi": true,
         "name": "field",
         "options": [],
-        "query": "import \"influxdata/influxdb/schema\"\nschema.fieldKeys(bucket: \"sensor-data\")\n  |> filter(fn: (r) => r._value =~ /^data_/)",
+        "query": "import \"influxdata/influxdb/schema\"\nschema.fieldKeys(bucket: \"sensor-data\")\n  |> filter(fn: (r) => r._value =~ /^(features_|features_sensors_properties_)/)",
         "refresh": 2,
         "sort": 1,
         "type": "query"

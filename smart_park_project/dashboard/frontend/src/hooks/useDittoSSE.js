@@ -49,20 +49,59 @@ export function useDittoSSE() {
       const thingId = payload.thingId
       if (!thingId) return
 
+      // Deep-merge features: preserva le features esistenti e aggiorna solo quelle arrivate
+      // Questo è critico per i partial SSE events (es. modifica desiredProperties)
+      // che contengono solo la feature modificata, non l'intero Thing.
+      const deepMergeFeatures = (existing = {}, incoming = {}) => {
+        const result = { ...existing }
+        for (const [featName, featVal] of Object.entries(incoming)) {
+          if (!featVal || typeof featVal !== 'object') {
+            result[featName] = featVal
+            continue
+          }
+          const existingFeat = existing[featName] || {}
+          result[featName] = {
+            ...existingFeat,
+            properties:        { ...(existingFeat.properties || {}),        ...(featVal.properties || {}) },
+            desiredProperties: { ...(existingFeat.desiredProperties || {}), ...(featVal.desiredProperties || {}) },
+          }
+        }
+        return result
+      }
+
+      const incomingFeats = payload.features || {}
+      const incomingAttrs = payload.attributes || {}
+
+      // Ricostruiamo il flat delle SOLE properties che arrivano in questo evento
       const flat = {}
-      const feats = payload.features || {}
-      for (const [, featVal] of Object.entries(feats)) {
+      for (const [, featVal] of Object.entries(incomingFeats)) {
         const props = featVal?.properties || {}
         Object.assign(flat, props)
       }
 
-      merge(thingId, {
-        thingId,
-        attributes: payload.attributes || {},
-        features: feats,
-        ...flat,
+      setThings(prev => {
+        const existing = prev[thingId] || {}
+        const mergedFeatures = deepMergeFeatures(existing.features || {}, incomingFeats)
+
+        // Attributes: merge, ma non sovrascrivere con {} se il patch non le porta
+        const mergedAttrs = Object.keys(incomingAttrs).length > 0
+          ? { ...(existing.attributes || {}), ...incomingAttrs }
+          : (existing.attributes || {})
+
+        return {
+          ...prev,
+          [thingId]: {
+            ...existing,
+            thingId,
+            attributes: mergedAttrs,
+            features:   mergedFeatures,
+            // Aggiorna i campi piatti SOLO se l'evento ne porta di nuovi
+            ...(Object.keys(flat).length > 0 ? flat : {}),
+          }
+        }
       })
     }
+
 
     const connect = async () => {
       try {

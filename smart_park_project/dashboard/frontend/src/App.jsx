@@ -65,8 +65,8 @@ export default function App() {
     'lat', 'lng', 'timestamp', 'device_id', 'type',
     'name', 'zone', 'thingId', 'location', 'activity',
     // Rimuoviamo i doppioni causati dai vecchi log prima della standardizzazione
-    'temperatura', 'temperature', 'umidita', 'umidità', 'humidity',
-    'co2', 'rumore', 'pressione', 'luminosita', 'luminosità'
+    'temperatura', 'umidita', 'umidità',
+    'rumore', 'pressione', 'luminosita', 'luminosità'
   ])
 
   // Metriche disponibili per il tipo selezionato — unione di tutte le feature props

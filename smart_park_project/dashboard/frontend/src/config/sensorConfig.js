@@ -117,5 +117,82 @@ export const getTypeConfig = (type) => {
 };
 
 export const getTelemetryMeta = (key) => {
-  return telemetryDictionary[key] || { label: key, unit: "", icon: "🔹" };
-};
+  return telemetryDictionary[key] || { label: key.replace(/_/g, ' '), unit: '', icon: '🔹' }
+}
+
+// --- 3. DIZIONARIO DESIRED PROPERTIES (Controllo bidirezionale) ---
+// Associa ogni chiave di desiredProperties a: etichetta, icona, tipo widget, e parametri.
+// I widget supportati sono: 'toggle' (bool), 'slider' (number), 'select' (enum), 'text' (fallback)
+export const DESIRED_META = {
+  // ── Comuni a tutti i tipi ────────────────────────────────────────────────
+  alert_active: {
+    label: 'Stato Allerta', icon: '🚨', widget: 'toggle',
+    description: 'Attiva la simulazione di emergenza per questo sensore'
+  },
+  sampling_rate_s: {
+    label: 'Frequenza campionamento', icon: '⏱️', widget: 'slider', unit: 's',
+    min: 5, max: 300, step: 5,
+    description: 'Intervallo in secondi tra un campionamento e il successivo'
+  },
+
+  // ── Environmental ─────────────────────────────────────────────────────────
+  alert_threshold_temp: {
+    label: 'Soglia temperatura allerta', icon: '🌡️', widget: 'slider', unit: '°C',
+    min: 20, max: 80, step: 1,
+    description: 'Temperatura sopra cui viene segnalata un\'anomalia'
+  },
+
+  // ── Vision / Camera ───────────────────────────────────────────────────────
+  tracking_mode: {
+    label: 'Modalità tracking', icon: '📷', widget: 'select',
+    options: ['person', 'crowd', 'anomaly', 'disabled'],
+    optionLabels: { person: 'Persone', crowd: 'Folla', anomaly: 'Anomalie', disabled: 'Disabilitato' },
+    description: 'Seleziona cosa monitorare con la telecamera AI'
+  },
+  confidence_threshold: {
+    label: 'Soglia confidenza AI', icon: '🧠', widget: 'slider', unit: '%',
+    min: 0.5, max: 1.0, step: 0.05,
+    description: 'Valore minimo di confidenza per segnalare un rilevamento'
+  },
+  night_mode: {
+    label: 'Modalità notturna', icon: '🌙', widget: 'toggle',
+    description: 'Attiva il filtro infrarosso per la visione notturna'
+  },
+  frame_rate_fps: {
+    label: 'Frame rate', icon: '🎞️', widget: 'slider', unit: 'fps',
+    min: 1, max: 30, step: 1,
+    description: 'Numero di fotogrammi al secondo elaborati'
+  },
+
+  // ── Audio / Microfono ─────────────────────────────────────────────────────
+  sensitivity: {
+    label: 'Sensibilità microfono', icon: '🎤', widget: 'slider',
+    min: 0, max: 1.0, step: 0.1,
+    description: 'Livello di sensibilità del microfono (0.0 = minima, 1.0 = massima)'
+  },
+  noise_threshold_db: {
+    label: 'Soglia rumore allerta', icon: '🔊', widget: 'slider', unit: 'dB',
+    min: 40, max: 100, step: 5,
+    description: 'Livello di rumore dB oltre cui scatta l\'allerta audio'
+  },
+
+  // ── Wearable / Shimmer ────────────────────────────────────────────────────
+  sampling_rate_hz: {
+    label: 'Frequenza campionamento', icon: '⚡', widget: 'slider', unit: 'Hz',
+    min: 1, max: 50, step: 1,
+    description: 'Frequenza di campionamento dei sensori IMU (Hz)'
+  },
+  vibration_alert_enabled: {
+    label: 'Alert vibrazione', icon: '〰️', widget: 'toggle',
+    description: 'Abilita gli avvisi quando si supera la soglia di vibrazione'
+  },
+  vibration_threshold: {
+    label: 'Soglia vibrazione', icon: '📊', widget: 'slider', unit: 'g',
+    min: 0.5, max: 10, step: 0.5,
+    description: 'Intensità di vibrazione (g) oltre cui scatta l\'alert'
+  },
+}
+
+export const getDesiredMeta = (key) => {
+  return DESIRED_META[key] || { label: key.replace(/_/g, ' '), icon: '⚙️', widget: 'text' }
+}

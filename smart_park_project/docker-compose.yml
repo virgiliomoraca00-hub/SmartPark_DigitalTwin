@@ -1,10 +1,7 @@
-version: '3.8'
-
 # ============================================================
 #  SMART PARK - Digital Twin Stack
 #  Componenti:
 #    - Mosquitto           : MQTT Broker (Real World gateway)
-#    - RabbitMQ            : AMQP 0.9.1 Broker
 #    - MongoDB             : Persistence per Ditto
 #    - Eclipse Ditto       : Digital Twin engine (5 microservizi)
 #      ├─ ditto-policies   : gestione policy di accesso
@@ -14,7 +11,9 @@ version: '3.8'
 #      ├─ ditto-gateway    : HTTP/WebSocket API (porta 8080)
 #      └─ nginx            : reverse proxy + basic auth
 #    - InfluxDB            : Time-series storage
+#    - Telegraf            : Bridge MQTT → InfluxDB
 #    - Grafana             : Dashboard
+#    - Node-RED            : Simulatore sensori MQTT
 #    - MQTT Explorer       : Debug UI per MQTT
 # ============================================================
 
@@ -25,7 +24,6 @@ networks:
 volumes:
   mosquitto-data:
   mosquitto-log:
-  rabbitmq-data:
   mongodb-data:
   influxdb-data:
   grafana-data:
@@ -49,31 +47,6 @@ services:
       - mosquitto-log:/mosquitto/log
     networks:
       - iot-net
-
-  # ─────────────────────────────────────────
-  # 2. RABBITMQ — AMQP 0.9.1 Broker
-  #    Porta 5672 (AMQP) | 15672 (UI)
-  # ─────────────────────────────────────────
-  rabbitmq:
-    image: rabbitmq:3.12-management
-    container_name: rabbitmq
-    restart: unless-stopped
-    ports:
-      - "5672:5672"
-      - "15672:15672"
-    environment:
-      RABBITMQ_DEFAULT_USER: hono
-      RABBITMQ_DEFAULT_PASS: hono-secret
-      RABBITMQ_DEFAULT_VHOST: /
-    volumes:
-      - rabbitmq-data:/var/lib/rabbitmq
-    networks:
-      - iot-net
-    healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "ping"]
-      interval: 15s
-      timeout: 10s
-      retries: 5
 
   # ─────────────────────────────────────────
   # 3. MONGODB — Persistence per Eclipse Ditto
@@ -187,13 +160,10 @@ services:
       - TZ=Europe/Rome
       - BIND_HOSTNAME=0.0.0.0
       - MONGO_DB_URI=mongodb://ditto:ditto-secret@mongodb:27017/ditto?authSource=admin
-      - CONNECTIVITY_MESSAGE_MAPPING_JS_COMMON_JS_MODULE_PATH=/opt/ditto/js
       - JAVA_TOOL_OPTIONS=-XX:+ExitOnOutOfMemoryError -Xss512k -XX:MaxRAMPercentage=75 -Dpekko.remote.artery.canonical.hostname=ditto-connectivity -Dpekko.remote.artery.canonical.port=2551 -Dpekko.cluster.seed-nodes.0=pekko://ditto-cluster@ditto-policies:2551
     depends_on:
       - ditto-policies
       - ditto-things
-    volumes:
-      - ./mappers/commonjs:/opt/ditto/js:ro
     networks:
       iot-net:
         aliases:
@@ -256,25 +226,6 @@ services:
       - "8081:8080"
     environment:
       - DITTO_ENDPOINT=http://localhost:8080
-    networks:
-      - iot-net
-
-  # ─────────────────────────────────────────
-  # 4h. Smart Park UI — Mappa sensori
-  #     Porta 8090 (nginx static)
-  # ─────────────────────────────────────────
-  smart-park-ui:
-    image: nginx:1.25-alpine
-    container_name: smart-park-ui
-    profiles: ["optional"]
-    restart: unless-stopped
-    ports:
-      - "8090:80"
-    volumes:
-      - ./smart-park-ui:/usr/share/nginx/html:ro
-      - ./smart-park-ui/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-    depends_on:
-      - nginx
     networks:
       - iot-net
 
@@ -365,46 +316,15 @@ services:
 #─── Node-RED (Simulatore Sensori MQTT) ──────────
   nodered:
     image: nodered/node-red:latest
-    restart: always
+    container_name: nodered
+    restart: unless-stopped
     ports:
       - "1880:1880"
     volumes:
       - ./nodered_data:/data
-      - ./mappers/commonjs:/data/mappers
-      - ./data:/data/smartpark
     networks:
       iot-net:
         aliases:
           - nodered
     environment:
       - TZ=Europe/Rome
-
-  smartpark-api:
-    build: ./smartpark-api
-    container_name: smartpark-api
-    profiles: ["optional"]
-    restart: unless-stopped
-    ports:
-      - "8091:3001"
-    volumes:
-      - ./data:/app/data                              # modelli JSON + template + admin-ui.html
-      - ./mappers/commonjs:/app/mappers/commonjs       # output bundler → ditto-connectivity lo legge
-    environment:
-      - PORT=3001
-      - DITTO_URL=http://nginx:80
-      - DITTO_USER=ditto
-      - DITTO_PASSWORD=ditto
-      - DITTO_DEVOPS_USER=devops
-      - DITTO_DEVOPS_PASSWORD=devops
-      - DITTO_NS=smartpark
-      - DITTO_CONN_ID=smartpark-mqtt-connection
-      - MAPPER_DEF_ID=custom-js-mapper
-      - MODELS_DIR=/app/data/sensors models
-      - TEMPLATE_PATH=/app/data/mapper-template.js
-      - MAPPER_OUT=/app/mappers/commonjs/smartpark-mapper.js
-      - ADMIN_UI_PATH=/app/data/admin-ui.html
-    depends_on:
-      - nginx
-    networks:
-      - iot-net
-

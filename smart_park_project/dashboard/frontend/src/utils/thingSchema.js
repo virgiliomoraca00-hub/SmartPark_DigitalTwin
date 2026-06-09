@@ -31,8 +31,8 @@ const EXCLUDED_KEYS = new Set([
   'lat', 'lng', 'timestamp', 'device_id', 'type',
   'name', 'zone', 'activity', 'location',
   // Rimuoviamo i doppioni causati dai vecchi log prima della standardizzazione
-  'temperatura', 'temperature', 'umidita', 'umidità', 'humidity',
-  'co2', 'rumore', 'pressione', 'luminosita', 'luminosità'
+  'temperatura', 'umidita', 'umidità',
+  'rumore', 'pressione', 'luminosita', 'luminosità'
 ])
 
 // Icone per tipo di sensore
